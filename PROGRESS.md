@@ -14,7 +14,7 @@ fills both your hand and the discard pool.
   revealed sets (they are seen tiles too).
 - No row of 5+ → all tiles are discards.
 
-Branch: `on-device-scanner` (merge into `main` when done).
+Branch: `on-device-scanner`, merged into `main` on 2026-10-29.
 
 ## Steps
 - [x] 0. Branch + this file
@@ -26,15 +26,23 @@ Branch: `on-device-scanner` (merge into `main` when done).
 - [x] 4. `PhotoImport.jsx` / `App.jsx`: no API key; one photo → review with "My hand" and
       "Discards" sections; commit both
 - [x] 5. README + `netlify.toml`
-- [ ] 6. Verify end to end (tests, build, phone-size browser test), merge to `main`
+- [x] 6. Verify end to end (tests, build, phone-size browser test), merge to `main`
 
 ## Where to pick up
-Step 6: end-to-end check. Build, serve with `npx vite preview`, open on a phone-size
-screen, scan a table photo (hand row + scattered discards), review, add, and confirm the
-hand and discard pool fill correctly. Then merge `on-device-scanner` into `main` and push.
+**The on-device scanner is done and merged into `main`.** Ideas for next steps:
+- Test with real photos of a table (hand row + discards) and note any misreads here.
+- If angled discard photos misread a lot, add such photos to the Roboflow dataset,
+  retrain in Colab (see the calculator's README), and copy the new `.onnx` into both
+  projects' `public/models/`.
+- Possibly: detect your own claimed sets in the photo instead of adding them by hand.
 
-Step 5 done: README rewritten for the on-device scanner (with dataset credit),
-`netlify.toml` added (same as the calculator's).
+## Results (2026-10-29)
+- Engine tests: detect 15, engine 6, scenarios 5, value 2 passing (plus autoplay/scoring).
+- Phone-size Chrome test with a rendered table photo (13-tile hand row, 5 scattered
+  discards, another player's set of three 2-dots): all 21 tiles read in ~2.7 s, hand and
+  discards split correctly, both saved into the app in one tap.
+- Known: the test artwork draws the white dragon as a fully blank tile and the model
+  missed those; real white dragons (blue frame) were in the training data.
 
 ## How to run and check
 ```bash
