@@ -82,6 +82,15 @@ needed tiles die, explanations that match the real decision, measured by `npm ru
       each scoring pattern with its points ("Dragon Pung (2pt)"); "Still need" removed;
       self-draw-only plans say so. Fixed nested <button>s (plan card header and meld chips
       are now div role=button).
+- [x] Scan button renamed "📷 Scan hand/table" with one line under it; long directions
+      removed. "Make My Move" now closes the selected box (picker hidden).
+- [ ] NEXT (agreed with user, in order):
+      1. Chance model counts claims: pung tiles and the winning tile can come from any of 3
+         opponents' discards, chow tiles only from the left player, pair tiles drawn.
+      2. Plan value as you'd really finish: plans still 8+ after claiming (no Concealed Hand)
+         rank highest; fully-concealed-only lower; self-draw-only lowest.
+      3. Claims decided by the planner (plan value if you claim vs skip).
+      4. 4-player simulator (3 simple opponents, claims, wins off discards) to measure.
 - [ ] Claims still use the old logic (`meldEval.js`: shape distance + a goal check). Next:
       decide claims with the planner (compare plan value if you claim vs skip).
 - [ ] Rerun old-vs-new sim (last attempt only ran the old engine): old = a worktree of

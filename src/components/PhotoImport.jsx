@@ -161,18 +161,11 @@ export default function PhotoImport({ onImport, remaining }) {
             className="w-full rounded-xl bg-jade-mid text-cream text-sm font-bold py-2.5
               leading-tight disabled:opacity-40 active:scale-[0.98] transition-transform"
           >
-            📷 Scan the table
+            📷 Scan hand/table
             <span className="block text-[10px] font-normal text-cream/60">
-              your hand in a row, discards anywhere around it
+              tiles in a row are your hand, everything else is counted as discards
             </span>
           </button>
-          {!result && !busy && (
-          <p className="text-[10px] text-cream/40 leading-snug">
-            Opens your camera or photo library. Line your tiles up in one touching row;
-            the longest row becomes your hand and every other face-up tile counts as a
-            discard. Runs on your phone, free, no key needed.
-          </p>
-          )}
 
           {/* --- busy ----------------------------------------------------- */}
           {busy && (

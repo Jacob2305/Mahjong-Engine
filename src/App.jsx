@@ -337,10 +337,10 @@ export default function App() {
       myDiscardId: newMyDiscard,
     });
 
-    // After we throw a tile the turn passes to opponents — jump to the Discards
-    // box, centre it, and highlight what we just threw.
+    // Close the tile picker so the advice below is easy to read. After a throw,
+    // centre the Discards box so the tile just thrown (highlighted) is in view.
+    setZone(null);
     if (played.thrownId) {
-      setZone('discards');
       requestAnimationFrame(() => {
         discardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       });
