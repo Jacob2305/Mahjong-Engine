@@ -110,6 +110,17 @@ More calculator scorer bugs found and fixed on its `fix-fan-table` branch (copie
 `src/engine/mcr/`): suited pung values were text, so Pung of Terminals and Triple Pung never
 scored; Mixed Straight / Mixed Shifted Chows could count twice.
 
+## 4-player sim results (100 games, seed 2024, same deals)
+| | old (`main`) | new @ d0129ab (claims-aware planner) |
+|---|---|---|
+| advisor wins | 19% | **38%** |
+| advisor's discard let an opponent win | 16% | 11% |
+| opponent won otherwise | 47% | 37% |
+| draw | 18% | 14% |
+| avg decision / slowest | 154 ms / 2.6 s | 502 ms / **8.0 s** |
+To do: the 8 s worst case is too slow (likely `findTargets` at maxMissing 6 or several
+claim options); cap search time and/or move `advise()` into a Web Worker.
+
 ## Engine review (2026-10-29)
 How the advisor picks a discard (`discardEval.js`): for each tile, the resulting shanten
 (tiles from ready) dominates, then live outs, a bonus for isolated/dead tiles, and only at
