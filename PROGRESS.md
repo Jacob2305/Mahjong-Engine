@@ -42,6 +42,31 @@ Branch: `on-device-scanner`, merged into `main` on 2026-10-29.
 - Review screen: drag a tile between "My hand" and "Discards" to fix the side; tap still
   opens Move / Remove. Touch-tested in a phone-size browser.
 
+## Engine review (2026-10-29)
+How the advisor picks a discard (`discardEval.js`): for each tile, the resulting shanten
+(tiles from ready) dominates, then live outs, a bonus for isolated/dead tiles, and only at
+one-away does it check the 8-point minimum. Goal hands (`idealHand.js`) are computed but
+only used in the explanation text, not in choosing the discard.
+
+Measured:
+- Speed: `advise()` median ~45 ms, worst ~280 ms on a laptop (fine; phones maybe 3-5x).
+- Solo simulation, 150 games × 18 draws, no claims, no wins off discards, judged by the
+  calculator's full scorer: random discards 0% wins / 0% complete; engine **9% legal 8+
+  wins, 17% complete shapes, 61% one-away at the end**. About half its completed hands
+  were under 8 points, so they can't be declared.
+- Its scorer (`scoring.js`) is a simplified subset. On 300 random concealed hands vs the
+  calculator's full 81-fan scorer: same 8-point verdict 79% (92% if the Concealed Hand +2
+  bonus, which it leaves out on purpose, is ignored); exact same points only 15-19%.
+- No defence: it doesn't consider whether a discard could hand an opponent the win.
+
+Suggested next steps (not started):
+1. Use the calculator's full scorer (`../Mahjong-Scoring-Calculator/src/engine/scorer.js`
+   + `fanRules.js`, `exclusions.js`, `decompose.js`, `tiles.js`; ids differ: `m1` vs `man1`).
+2. Make discard choice value-aware: rank discards by progress toward legal 8+ goals,
+   not raw shanten.
+3. Keep a simulation script in the repo to measure each change (the numbers above).
+4. Later: defence (danger rating of each discard from what opponents threw/claimed).
+
 ## Results (2026-10-29)
 - Engine tests: detect 15, engine 6, scenarios 5, value 2 passing (plus autoplay/scoring).
 - Phone-size Chrome test with a rendered table photo (13-tile hand row, 5 scattered
