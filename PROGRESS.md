@@ -42,6 +42,30 @@ Branch: `on-device-scanner`, merged into `main` on 2026-10-29.
 - Review screen: drag a tile between "My hand" and "Discards" to fix the side; tap still
   opens Move / Remove. Touch-tested in a phone-size browser.
 
+## Current work: smarter engine (branch `smarter-engine`)
+Plan: play for legal 8+ hands from the start, keep backup plans open so it can pivot when
+needed tiles die, explanations that match the real decision, measured by `npm run sim`.
+
+- [x] 1. Simulation harness: `scripts/simulate.mjs` (`npm run sim`, options `--games`,
+      `--turns`, `--seed`, `--strategy engine|random`). Judges wins with the full scorer.
+- [x] 2. Full MCR scorer: `src/engine/mcr/` (copied from the calculator) + `mcr/index.js`
+      adapter for tile ids. `scoring.js` `bestScore()` now uses it (same output shape,
+      cached). Scores as a win by discard, so Concealed Hand +2 is included.
+      While checking it, found and fixed fan-table bugs in the calculator (branch
+      `fix-fan-table` there, pushed, not merged yet): Two Concealed Pungs 4→2, Two Concealed
+      Kongs 2→8; added All Simples (2), Concealed Kong (2), Two Melded Kongs (4).
+      Still missing: Last Tile 和绝张 (needs a UI flag).
+- [ ] 3. Goals respect the wall (`idealHand.js`): no goal may need a tile with 0 live copies;
+      rank goals by reach likelihood × value.
+- [ ] 4. Value-aware discards with backup plans (`discardEval.js`).
+- [ ] 5. Explanations built from the actual decision.
+- [ ] 6. Speed check (< 1 s per decision), Web Worker if needed.
+- [ ] 7. Verify (tests, sim before/after, browser) and merge.
+
+Known bug to fix in step 3 (probe): with both remaining Red Dragons discarded, the advice
+said "keeps you aimed at Mixed Straight (1 tile still needed)" and the needed tile was the
+dead Red Dragon.
+
 ## Engine review (2026-10-29)
 How the advisor picks a discard (`discardEval.js`): for each tile, the resulting shanten
 (tiles from ready) dominates, then live outs, a bonus for isolated/dead tiles, and only at

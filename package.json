@@ -6,7 +6,9 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "sim": "node scripts/simulate.mjs",
+    "test": "for t in src/engine/*.test.mjs; do node \"$t\" || exit 1; done"
   },
   "dependencies": {
     "onnxruntime-web": "^1.31.1",
