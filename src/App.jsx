@@ -386,6 +386,13 @@ export default function App() {
   const countWarn =
     handTotalSlots !== 13 && handTotalSlots !== 14 && handTotalSlots > 0;
 
+  // The tile picker opens right under whichever box is selected.
+  const picker = (
+    <div className="rounded-lg bg-jade-dark/40 p-2.5 -mt-1">
+      <TilePicker remaining={remaining} onPick={pickTile} zone={zone} />
+    </div>
+  );
+
   return (
     <div className="min-h-full flex flex-col">
       <main className="flex-1 px-3 pb-36 pt-2 space-y-2 max-w-md w-full mx-auto">
@@ -401,6 +408,7 @@ export default function App() {
           active={zone === 'hand'}
           onActivate={() => toggleZone('hand')}
         />
+        {zone === 'hand' && picker}
 
         <MeldBuilder onAdd={addMeld} remaining={remaining} />
 
@@ -415,6 +423,7 @@ export default function App() {
             myDiscardId={myDiscardId}
           />
         </div>
+        {zone === 'discards' && picker}
 
         {countWarn && (
           <div className="text-[11px] text-amber-300 bg-amber-900/20 rounded-md px-2 py-1.5">
@@ -423,16 +432,6 @@ export default function App() {
           </div>
         )}
 
-        {/* Tile picker: only while a box is selected */}
-        {zone ? (
-          <div className="rounded-lg bg-jade-dark/40 p-2.5">
-            <TilePicker remaining={remaining} onPick={pickTile} zone={zone} />
-          </div>
-        ) : (
-          <p className="text-center text-[11px] text-cream/40">
-            Tap <b className="text-cream/60">My Hand</b> or <b className="text-cream/60">Seen Discards</b> to add tiles
-          </p>
-        )}
 
         {/* Inline advice / move result (replaces the old popup) */}
         {advice && <AdvisorSheet advice={advice} />}

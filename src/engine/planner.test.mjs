@@ -57,5 +57,34 @@ const ctx = { seatWind: 'south', prevalentWind: 'south' };
   ok('plan named after its pattern, not Concealed Hand', !/Concealed Hand/.test(a.idealHand.headline), a.idealHand.headline);
 }
 
+// 5. Chicken Hand: allowed, but only open, off a discard, with a wait that scores
+//    nothing. Claimed 1-2-3 Characters; waiting on 4- or 7-Characters.
+{
+  const melds = [{ type: 'chow', tiles: ['man1', 'man2', 'man3'] }];
+  const hand = ['sou3', 'sou4', 'sou5', 'pin6', 'pin7', 'pin8', 'man5', 'man6', 'wind_north', 'wind_north'];
+  const ectx = { seatWind: 'east', prevalentWind: 'east' };
+  const counts = idsToCounts(hand);
+  const goals = evaluateHand(counts, findTargets(counts, melds, ectx), buildTilePool({}, hand, melds), 12).goals;
+  const chickenWins = goals.filter((g) => g.chicken && g.missing === 1).map((g) => g.need[0].id);
+  ok('Chicken Hand on 7-Characters is a plan', chickenWins.includes('man7'), chickenWins.join(','));
+  ok('4-Characters (adds Short Straight +1) is not', !chickenWins.includes('man4'), chickenWins.join(','));
+}
+// 6. A concealed hand can't finish as a Chicken Hand (Concealed Hand adds 2).
+{
+  const hand = ['man1', 'man2', 'man3', 'sou3', 'sou4', 'sou5', 'pin6', 'pin7', 'pin8', 'man5', 'man6', 'wind_north', 'wind_north'];
+  const ectx = { seatWind: 'east', prevalentWind: 'east' };
+  const counts = idsToCounts(hand);
+  const goals = evaluateHand(counts, findTargets(counts, [], ectx), buildTilePool({}, hand, []), 12).goals;
+  ok('no one-away Chicken Hand while concealed', !goals.some((g) => g.chicken && g.missing === 1));
+}
+// 7. Plans that need the Concealed Hand bonus are not planned from far away.
+{
+  const hand = ['man2', 'man3', 'man4', 'man6', 'man7', 'man8', 'pin3', 'pin4', 'sou5', 'sou5', 'dragon_white', 'dragon_white', 'wind_west'];
+  const counts = idsToCounts(hand);
+  const goals = evaluateHand(counts, findTargets(counts, [], ctx), buildTilePool({}, hand, []), 14).goals;
+  ok('only open plans when 2+ tiles away', goals.filter((g) => g.missing > 1).every((g) => g.finish === 'open'));
+  ok('open plans are scored without Concealed Hand', goals.filter((g) => g.missing > 1).every((g) => !g.reasons.some((r) => r.startsWith('Concealed Hand'))));
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail) process.exit(1);

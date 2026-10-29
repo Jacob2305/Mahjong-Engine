@@ -51,27 +51,50 @@ export function findTargets(counts, melds = [], ctx = {}, opts = {}) {
     for (let i = 0; i < 34; i++) if (c[i] > 4) return;
     const key = c.join('');
     if (found.has(key)) return;
-    // Legal off a discard is best; legal only when you draw the last tile yourself
-    // (self-draw adds Fully Concealed / Self-Drawn) still counts, flagged.
-    let sc = bestScore(c, melds, { ...ctx, winType: 'discard' });
-    let selfDrawOnly = false;
-    if (sc.points < MIN_POINTS) {
+    // How the finished hand scores. You'll usually claim tiles, which opens the
+    // hand, so plans are valued WITHOUT Concealed Hand (+2). An open hand that
+    // scores nothing else is a Chicken Hand (8). Plans that only reach 8 by staying
+    // concealed, or by drawing the last tile yourself, are kept for the very end
+    // (one tile away) only; evaluateHand enforces that.
+    const concealedNow = melds.length === 0;
+    const ptsOf = (r) => Number((r.match(/\+(\d+)$/) || [0, 0])[1]);
+    const byDiscard = bestScore(c, melds, { ...ctx, winType: 'discard' });
+    let open;
+    if (concealedNow) {
+      const rest = byDiscard.reasons.filter((r) => !r.startsWith('Concealed Hand'));
+      const pts = rest.reduce((a, r) => a + ptsOf(r), 0);
+      open = pts === 0
+        ? { points: 8, reasons: ['Chicken Hand 无番和 +8'], chicken: true }
+        : { points: pts, reasons: rest, chicken: false };
+    } else {
+      open = { points: byDiscard.points, reasons: byDiscard.reasons, chicken: byDiscard.reasons.some((r) => r.startsWith('Chicken Hand')) };
+    }
+
+    let finish;
+    let sc;
+    if (open.points >= MIN_POINTS) {
+      finish = 'open';
+      sc = open;
+    } else if (byDiscard.points >= MIN_POINTS) {
+      finish = 'concealed';
+      sc = byDiscard;
+    } else {
       sc = bestScore(c, melds, { ...ctx, winType: 'selfdraw' });
       if (sc.points < MIN_POINTS) return;
-      selfDrawOnly = true;
+      finish = 'selfdraw';
     }
-    // Chicken Hand (8 only when nothing else scores) breaks the moment any point
-    // is added, e.g. by the wait or a self-draw, so never plan for it.
-    if (sc.reasons.some((r) => r.startsWith('Chicken Hand'))) return;
-    // Claiming a set opens the hand and loses Concealed Hand (+2); is it still 8+?
-    const concealedBonus = sc.reasons.some((r) => r.startsWith('Concealed Hand')) ? 2 : 0;
-    const openLegal = !selfDrawOnly && melds.length === 0 ? sc.points - concealedBonus >= MIN_POINTS : !selfDrawOnly;
     found.set(key, {
-      selfDrawOnly,
-      openLegal,
-      // How it can be finished: 'open' (claims allowed), 'concealed' (only the
-      // winning tile may be claimed) or 'selfdraw' (every tile drawn yourself).
-      finish: selfDrawOnly ? 'selfdraw' : openLegal ? 'open' : 'concealed',
+      // 'open': 8+ even after claiming (claims allowed); 'concealed': needs the
+      // Concealed Hand bonus; 'selfdraw': needs a self-drawn last tile.
+      finish,
+      selfDrawOnly: finish === 'selfdraw',
+      chicken: finish === 'open' && open.chicken,
+      concealedNow,
+      // Scoring if you win off a discard while still concealed (for the last tile).
+      concealedPoints: byDiscard.points,
+      concealedReasons: byDiscard.reasons,
+      melds,
+      ctx,
       key,
       target: c,
       picks: picks.map((p) => ({ ...p })),
@@ -228,22 +251,40 @@ export function evaluateHand(counts, targets, pool, drawsLeft) {
       continue;
     }
     const finish = t.finish || 'open';
+    // Concealed-only and self-draw-only plans: only when one tile away.
+    if (finish !== 'open' && missing > 1) continue;
     // Claims save draws, so an open plan can need a few more tiles than draws left.
-    if (missing > drawsLeft * (finish === 'open' ? 2 : 1)) continue;
+    if (missing > drawsLeft * 2) continue;
 
     let chance;
+    let shown = {};
     if (missing === 1) {
-      // One tile from winning: draw it, or (unless self-draw only) win on anyone's discard.
       const p = need[0].live / unseen;
-      const extra = finish === 'selfdraw' ? 0 : OPPONENTS * DISCARD_RATE;
-      chance = atLeast(1, Math.round(drawsLeft * (1 + extra)), p);
+      if (t.chicken) {
+        // Chicken Hand: the hand must already be open, the win must come off a
+        // discard (a self-draw adds a point), and the wait must score nothing.
+        if (t.concealedNow) continue;
+        const exact = bestScore(t.target, t.melds, { ...t.ctx, winType: 'discard', winningTile: need[0].id });
+        if (exact.points < MIN_POINTS) continue;
+        chance = atLeast(1, Math.round(drawsLeft * OPPONENTS * DISCARD_RATE), p);
+      } else {
+        // Draw it, or (unless self-draw only) win on anyone's discard.
+        const extra = finish === 'selfdraw' ? 0 : OPPONENTS * DISCARD_RATE;
+        chance = atLeast(1, Math.round(drawsLeft * (1 + extra)), p);
+        // Winning off a discard while still concealed adds Concealed Hand back.
+        if (finish === 'open' && t.concealedNow) {
+          shown = { points: t.concealedPoints, reasons: t.concealedReasons };
+        }
+      }
     } else {
       chance = 1;
       for (const g of missingBySet(counts, t)) {
         chance *= setChance(g, livePer, unseen, drawsLeft, finish === 'open');
       }
+      // Chicken Hand also needs a no-point wait and a win off a discard.
+      if (t.chicken) chance *= 0.5;
     }
-    ok.push({ ...t, need, missing, chance });
+    ok.push({ ...t, ...shown, need, missing, chance });
   }
   // Mostly about winning at all; a bigger hand is a small bonus.
   const worth = (g) => g.chance * (1 + Math.min(g.points, 64) / 64);

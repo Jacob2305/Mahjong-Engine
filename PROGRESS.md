@@ -94,8 +94,14 @@ needed tiles die, explanations that match the real decision, measured by `npm ru
       plan value if you skip vs. after each pung/chow + best discard; claims if it adds
       >1 point of chance. Reason: "Take the Red as a pung — your chance of an 8+ hand goes
       from 38% to 71% (plan: …), then throw …". `meldEval.js` no longer used by advise.
-- [ ] 4. 4-player simulator (3 simple opponents, claims, wins off discards) to measure
-      old (`main`) vs new.
+- [x] Tile picker opens directly under the selected box (My Hand or Seen Discards).
+- [x] Plans valued as OPEN hands (asked by user: you usually claim, so don't count on
+      Concealed Hand): `findTargets` scores each target without Concealed Hand; if nothing
+      else scores it's a Chicken Hand (8). 'concealed'/'selfdraw' plans only count when one
+      tile away. Chicken Hand allowed with its limits: hand must be open, win off a
+      discard only (self-draw adds a point), and the wait must score nothing (exact check
+      one tile away; ×0.5 chance further out). Tests in `planner.test.mjs` (16 passing).
+- [x] 4. 4-player simulator: `scripts/simulate4.mjs` (`npm run sim4`). Results: see below.
 - [ ] Rerun old-vs-new sim (last attempt only ran the old engine): old = a worktree of
       `main` with the fixed `src/engine/mcr/` + `scripts/simulate.mjs` copied in.
 
