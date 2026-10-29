@@ -22,20 +22,23 @@ Branch: `on-device-scanner` (merge into `main` when done).
       `onnxruntime-web`, remove `@anthropic-ai/sdk`, Vite `optimizeDeps.exclude`
 - [x] 2. `src/engine/detect.js`: decode model output, map class names to this app's ids,
       split hand row vs discards (+ `detect.test.mjs`)
-- [ ] 3. `src/engine/vision.js`: run the model in the browser instead of calling Claude
+- [x] 3. `src/engine/vision.js`: run the model in the browser instead of calling Claude
 - [ ] 4. `PhotoImport.jsx` / `App.jsx`: no API key; one photo → review with "My hand" and
       "Discards" sections; commit both
 - [ ] 5. README + `netlify.toml`
 - [ ] 6. Verify end to end (tests, build, phone-size browser test), merge to `main`
 
 ## Where to pick up
-Start step 3: rewrite `src/engine/vision.js` to run the model with onnxruntime-web
-(port `../Mahjong-Scoring-Calculator/src/scan/localScan.js`) and return
-`splitTable()` results from `detect.js`. The build still fails until `vision.js` stops
-importing `@anthropic-ai/sdk`.
+Start step 4: update `src/components/PhotoImport.jsx` (and `App.jsx`) for the new
+`recognizeTiles({ image, onStatus })`, which returns `{ hand, discards, notes }`.
+Remove the API-key UI and the `apiKey` / `onApiKeyChange` props and state. Replace the
+"My hand" / "The table" buttons with one "📷 Scan the table" button, and show the review
+in two sections ("My hand", "Discards"). Tap a tile to drop it; a small action moves a tile
+to the other section. Commit calls `onImport(ids, 'hand')` and `onImport(ids, 'discards')`.
+Call `preloadScanner()` when the panel opens.
 
-Step 2 done: `detect.js` (decode, class map, `splitTable` = longest row of 5+ is the hand,
-tie → row nearest the bottom of the photo) with 15 passing tests in `detect.test.mjs`.
+Step 3 done: `vision.js` runs the model with onnxruntime-web (lazy-loaded), no Claude code
+left. `npm run build` works again.
 
 ## How to run and check
 ```bash
