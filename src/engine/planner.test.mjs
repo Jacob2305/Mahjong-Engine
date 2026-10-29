@@ -37,13 +37,17 @@ const ctx = { seatWind: 'south', prevalentWind: 'south' };
   ok('with East Winds dead, plans never need them', !needs(liveRed).has('wind_east'));
 }
 
-// 3. Backups add value: two different live routes beat one.
+// 3. Backups add value: routes count by the tiles they need, not their name.
 {
-  const one = planValue([{ headline: 'A', chance: 0.3 }]);
-  const two = planValue([{ headline: 'A', chance: 0.3 }, { headline: 'B', chance: 0.2 }]);
-  const dup = planValue([{ headline: 'A', chance: 0.3 }, { headline: 'A', chance: 0.2 }]);
-  ok('a different backup plan raises the value', two.value > one.value);
-  ok('the same plan twice does not count as a backup', dup.value === one.value);
+  const needA = ['sou3'], needB = ['pin7'];
+  const route = (headline, chance, ids) => ({ headline, chance, need: ids.map((id) => ({ idx: id.length + id.charCodeAt(3), id, count: 1 })) });
+  const one = planValue([route('A', 0.3, needA)]);
+  const two = planValue([route('A', 0.3, needA), route('B', 0.2, needB)]);
+  const sameName = planValue([route('Chicken', 0.3, needA), route('Chicken', 0.2, needB)]);
+  const sameTiles = planValue([route('A', 0.3, needA), route('B', 0.2, needA)]);
+  ok('a second route with different tiles raises the value', two.value > one.value);
+  ok('same name but different tiles still counts (e.g. many Chicken Hand shapes)', sameName.value > one.value);
+  ok('a route needing exactly the same tiles adds nothing', Math.abs(sameTiles.value - one.value) < 1e-9);
 }
 
 // 4. A dead isolated tile goes when the rest is one tile from a hand that's

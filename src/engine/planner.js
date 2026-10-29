@@ -27,7 +27,9 @@ const canChowAt = (i) => i < 27 && i % 9 <= 6;
 // The chance model below assumes you draw every needed tile yourself, which is
 // exactly the self-draw case.
 export function findTargets(counts, melds = [], ctx = {}, opts = {}) {
-  const { maxMissing = 5, maxTargets = 600, nodeLimit = 1_500_000 } = opts;
+  // timeMs: stop searching after this long and keep what was found (closest first).
+  const { maxMissing = 5, maxTargets = 4000, nodeLimit = 1_500_000, timeMs = 250 } = opts;
+  const deadline = performance.now() + timeMs;
   const needSets = 4 - melds.length;
   if (needSets < 0) return [];
 
@@ -106,8 +108,14 @@ export function findTargets(counts, melds = [], ctx = {}, opts = {}) {
     });
   }
 
+  let limit = 0; // current search depth (tiles missing), raised one step at a time
+  let outOfTime = false;
   function rec(i, setsLeft, pairUsed, missing) {
-    if (missing > maxMissing || ++nodes > nodeLimit) return;
+    if (missing > limit || outOfTime) return;
+    if ((++nodes & 1023) === 0 && (nodes > nodeLimit || performance.now() > deadline)) {
+      outOfTime = true;
+      return;
+    }
     if (setsLeft === 0 && pairUsed) {
       evaluate(missing);
       return;
@@ -149,7 +157,9 @@ export function findTargets(counts, melds = [], ctx = {}, opts = {}) {
     rec(i + 1, setsLeft, pairUsed, missing);
   }
 
-  rec(0, needSets, false, 0);
+  // Closest hands first: everything 1 tile away, then 2, ... so when time runs
+  // out, the hands that matter most have already been found.
+  for (limit = 1; limit <= maxMissing && !outOfTime; limit++) rec(0, needSets, false, 0);
   return [...found.values()]
     .sort((a, b) => a.missing - b.missing || b.points - a.points)
     .slice(0, maxTargets);
@@ -306,11 +316,30 @@ export function distinctPlans(goals, max = 4) {
   return out;
 }
 
-// Chance that at least one of the top few different plans comes in.
-// Rewards having backups, not just one strong route.
-export function planValue(goals, k = 3) {
+// Chance that at least one route comes in. Routes are counted by the TILES they
+// need, not by name: 30 different Chicken Hand shapes are 30 routes, which is the
+// flexibility that lets the hand pivot. A route that needs mostly the same tiles as
+// one already counted adds only a little (they tend to succeed or fail together).
+// `plans` (one per name) is what the explanation and plan cards show.
+export function planValue(goals, k = 3, maxRoutes = 10) {
   const plans = distinctPlans(goals, k);
+  const chosen = [];
   let none = 1;
-  for (const g of plans) none *= 1 - g.chance;
-  return { value: 1 - none, plans };
+  for (const g of goals.slice(0, 80)) {
+    if (chosen.length >= maxRoutes) break;
+    const total = g.need.reduce((a, n) => a + n.count, 0) || 1;
+    let overlap = 0;
+    for (const c of chosen) {
+      let shared = 0;
+      for (const n of g.need) {
+        const m = c.need.find((x) => x.idx === n.idx);
+        if (m) shared += Math.min(n.count, m.count);
+      }
+      overlap = Math.max(overlap, shared / total);
+    }
+    if (chosen.length && overlap >= 0.999) continue; // same tiles: same route
+    none *= 1 - g.chance * (1 - 0.8 * overlap);
+    chosen.push(g);
+  }
+  return { value: 1 - none, plans, routes: chosen.length };
 }
