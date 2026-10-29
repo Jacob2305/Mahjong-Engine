@@ -36,6 +36,12 @@ Branch: `on-device-scanner`, merged into `main` on 2026-10-29.
   projects' `public/models/`.
 - Possibly: detect your own claimed sets in the photo instead of adding them by hand.
 
+## Changes after the scanner (2026-10-29)
+- Scan panel moved to the top of the page; the "📷 Scan the table" button shows straight
+  away (no show/hide toggle).
+- Review screen: drag a tile between "My hand" and "Discards" to fix the side; tap still
+  opens Move / Remove. Touch-tested in a phone-size browser.
+
 ## Results (2026-10-29)
 - Engine tests: detect 15, engine 6, scenarios 5, value 2 passing (plus autoplay/scoring).
 - Phone-size Chrome test with a rendered table photo (13-tile hand row, 5 scattered

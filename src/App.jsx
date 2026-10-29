@@ -374,6 +374,9 @@ export default function App() {
   return (
     <div className="min-h-full flex flex-col">
       <main className="flex-1 px-3 pb-36 pt-2 space-y-2 max-w-md w-full mx-auto">
+        {/* Scan first: snap the table instead of tapping 14 tiles */}
+        <PhotoImport onImport={importTiles} remaining={remaining} />
+
         {/* Hand — tap the box to target it */}
         <HandDisplay
           handIds={handIds}
@@ -385,12 +388,6 @@ export default function App() {
         />
 
         <MeldBuilder onAdd={addMeld} remaining={remaining} />
-
-        {/* Snap a photo instead of tapping 14 tiles */}
-        <PhotoImport
-          onImport={importTiles}
-          remaining={remaining}
-        />
 
         {/* Discards — tap the box to target it */}
         <div ref={discardRef} className="scroll-mt-3">

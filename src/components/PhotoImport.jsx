@@ -16,14 +16,17 @@ const SECTIONS = [
 // and a single misread tile changes every discard recommendation. Nothing reaches
 // the engine until you have looked at it.
 export default function PhotoImport({ onImport, remaining }) {
-  const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState(null);
   const [error, setError] = useState(null);
   const [preview, setPreview] = useState(null);
   const [result, setResult] = useState(null); // { hand: [...], discards: [...], notes }
   const [selected, setSelected] = useState(null); // { section, index }
+  const [drag, setDrag] = useState(null); // { section, index, id, x, y, over }
   const fileRef = useRef(null);
+  const sectionRefs = { hand: useRef(null), discards: useRef(null) };
+  const press = useRef(null);
+  const justDragged = useRef(false); // swallow the click that follows a drag
 
   const reset = () => {
     setResult(null);
@@ -33,6 +36,7 @@ export default function PhotoImport({ onImport, remaining }) {
   };
 
   const askForPhoto = () => {
+    preloadScanner();
     reset();
     // Reset .value so re-picking the same file still fires onChange.
     if (fileRef.current) {
@@ -62,13 +66,8 @@ export default function PhotoImport({ onImport, remaining }) {
     }
   };
 
-  const removeSelected = () => {
-    const { section, index } = selected;
-    setResult((r) => ({ ...r, [section]: r[section].filter((_, i) => i !== index) }));
-    setSelected(null);
-  };
-  const moveSelected = () => {
-    const { section, index } = selected;
+  // Move one tile to the end of the other section.
+  const moveTile = (section, index) => {
     const other = section === 'hand' ? 'discards' : 'hand';
     setResult((r) => ({
       ...r,
@@ -77,6 +76,48 @@ export default function PhotoImport({ onImport, remaining }) {
     }));
     setSelected(null);
   };
+
+  // --- drag a tile to the other section (pointer events: touch + mouse) ------
+  const sectionAt = (x, y) => {
+    for (const { key } of SECTIONS) {
+      const r = sectionRefs[key].current?.getBoundingClientRect();
+      if (r && x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) return key;
+    }
+    return null;
+  };
+  const onPointerDown = (e, section, index, id) => {
+    if (e.button > 0) return;
+    e.currentTarget.setPointerCapture(e.pointerId);
+    press.current = { section, index, id, x0: e.clientX, y0: e.clientY, dragging: false };
+  };
+  const onPointerMove = (e) => {
+    const p = press.current;
+    if (!p) return;
+    if (!p.dragging && Math.hypot(e.clientX - p.x0, e.clientY - p.y0) < 8) return;
+    p.dragging = true;
+    setDrag({ section: p.section, index: p.index, id: p.id, x: e.clientX, y: e.clientY, over: sectionAt(e.clientX, e.clientY) });
+  };
+  const onPointerUp = (e) => {
+    const p = press.current;
+    press.current = null;
+    if (!p) return;
+    justDragged.current = p.dragging;
+    if (!p.dragging) return; // a tap: onClick selects the tile
+    setDrag(null);
+    const over = sectionAt(e.clientX, e.clientY);
+    if (over && over !== p.section) moveTile(p.section, p.index);
+  };
+  const onPointerCancel = () => {
+    press.current = null;
+    setDrag(null);
+  };
+
+  const removeSelected = () => {
+    const { section, index } = selected;
+    setResult((r) => ({ ...r, [section]: r[section].filter((_, i) => i !== index) }));
+    setSelected(null);
+  };
+  const moveSelected = () => moveTile(selected.section, selected.index);
 
   // Flag any tile that would push a type past its four physical copies, usually a
   // sign of a double-counted tile. Counted across both sections, hand first.
@@ -110,20 +151,7 @@ export default function PhotoImport({ onImport, remaining }) {
 
   return (
     <div className="rounded-lg bg-jade-dark/50 p-2.5">
-      <button
-        type="button"
-        onClick={() => {
-          if (!open) preloadScanner();
-          setOpen((o) => !o);
-        }}
-        className="w-full flex items-center justify-between"
-      >
-        <span className="text-sm font-semibold text-cream/90">📷 Fill from a photo</span>
-        <span className="text-gold text-xs">{open ? '▼ hide' : '▶ show'}</span>
-      </button>
-
-      {open && (
-        <div className="mt-2.5 space-y-2.5">
+        <div className="space-y-2.5">
           {/* --- capture -------------------------------------------------- */}
           <input ref={fileRef} type="file" accept="image/*" onChange={onFile} className="hidden" />
           <button
@@ -138,11 +166,13 @@ export default function PhotoImport({ onImport, remaining }) {
               your hand in a row, discards anywhere around it
             </span>
           </button>
+          {!result && !busy && (
           <p className="text-[10px] text-cream/40 leading-snug">
             Opens your camera or photo library. Line your tiles up in one touching row;
             the longest row becomes your hand and every other face-up tile counts as a
             discard. Runs on your phone, free, no key needed.
           </p>
+          )}
 
           {/* --- busy ----------------------------------------------------- */}
           {busy && (
@@ -171,29 +201,50 @@ export default function PhotoImport({ onImport, remaining }) {
                     Found {result.hand.length + result.discards.length} tiles
                   </div>
                   <p className="text-[10px] text-cream/60 leading-snug mt-0.5">
-                    Tap a tile to remove it or move it to the other group.
+                    Drag a tile to the other group if it landed on the wrong side, or tap it to remove it.
                   </p>
                 </div>
               </div>
 
               {SECTIONS.map(({ key, label, hint }) => (
-                <div key={key}>
+                <div
+                  key={key}
+                  ref={sectionRefs[key]}
+                  className={`rounded-lg p-1.5 -mx-1.5 transition-colors ${
+                    drag && drag.over === key && drag.section !== key ? 'bg-gold/20 ring-2 ring-gold' : ''
+                  }`}
+                >
                   <div className="text-[11px] font-bold text-cream/80 mb-1">
                     {label} · {result[key].length}{' '}
                     <span className="font-normal text-cream/40">{hint}</span>
                   </div>
                   {result[key].length === 0 ? (
-                    <div className="text-[10px] text-cream/35 px-1">none</div>
+                    <div className="text-[10px] text-cream/35 px-1 py-3">none — drag tiles here</div>
                   ) : (
                     <div className="flex flex-wrap gap-1.5">
                       {result[key].map((t, i) => {
                         const isSel = selected && selected.section === key && selected.index === i;
+                        const dragging = drag && drag.section === key && drag.index === i;
                         return (
-                          <div key={i} className={`flex flex-col items-center rounded-md ${isSel ? 'bg-gold/30 p-0.5' : ''}`}>
+                          <div
+                            key={i}
+                            className={`flex flex-col items-center rounded-md ${isSel ? 'bg-gold/30 p-0.5' : ''} ${dragging ? 'opacity-30' : ''}`}
+                            style={{ touchAction: 'none' }}
+                            onPointerDown={(e) => onPointerDown(e, key, i, t.id)}
+                            onPointerMove={onPointerMove}
+                            onPointerUp={onPointerUp}
+                            onPointerCancel={onPointerCancel}
+                            onClick={() => {
+                              if (justDragged.current) {
+                                justDragged.current = false;
+                                return;
+                              }
+                              setSelected(isSel ? null : { section: key, index: i });
+                            }}
+                          >
                             <Tile
                               id={t.id}
                               size="md"
-                              onClick={() => setSelected(isSel ? null : { section: key, index: i })}
                               highlight={t.confidence === 'low'}
                               dead={overflow[key].has(i)}
                             />
@@ -274,6 +325,12 @@ export default function PhotoImport({ onImport, remaining }) {
               </div>
             </div>
           )}
+        </div>
+
+      {/* The tile being dragged follows the finger. */}
+      {drag && (
+        <div className="pointer-events-none fixed z-50" style={{ left: drag.x - 18, top: drag.y - 30 }}>
+          <Tile id={drag.id} size="md" />
         </div>
       )}
     </div>
