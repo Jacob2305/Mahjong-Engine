@@ -24,7 +24,7 @@ const stripPts = (r) => r.replace(/\s*\+\d+$/, '');
 
 // The headline = the single highest-scoring fan (the pattern that defines the
 // direction). The full combination is kept separately as `fans`.
-function headlineOf(reasons) {
+export function headlineOf(reasons) {
   let headline = reasons[0] ? stripPts(reasons[0]) : 'a legal hand';
   let hp = -1;
   for (const r of reasons) {
@@ -49,7 +49,7 @@ function assignTile(ix, remain, pool) {
 }
 
 // Turn a found candidate into the display object the UI renders.
-function assemble(counts, melds, pool, cand) {
+export function assemble(counts, melds, pool, cand) {
   const groups = [];
   for (const md of melds) {
     groups.push({
@@ -113,7 +113,11 @@ export function legalWinGoals(
       }
     }
     c[pairIdx] += 2;
-    for (let i = 0; i < 34; i++) if (c[i] > 4) return; // impossible (>4 copies)
+    for (let i = 0; i < 34; i++) {
+      if (c[i] > 4) return; // impossible (>4 copies)
+      // Needs more copies than are still out there (e.g. all the rest discarded).
+      if (pool && c[i] - counts[i] > liveOf(pool, TILE_IDS[i])) return;
+    }
 
     const sc = bestScore(c, melds, ctx);
     if (sc.points < MIN_POINTS) return; // must reach the 8-point minimum

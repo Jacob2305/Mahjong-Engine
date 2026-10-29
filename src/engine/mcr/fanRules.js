@@ -357,12 +357,14 @@ function detectChowFans(out, chows) {
     if (lows.includes(1) && lows.includes(7)) add('twoTerminalChows')
   }
 
-  // mixed straight (1/4/7 spread one per suit) & mixed shifted chows
+  // mixed straight (1/4/7 spread one per suit) & mixed shifted chows. Each is a
+  // three-chow pattern, so it scores at most once even when a chow is repeated.
+  let mixedStraight = false, mixedShifted = false
   for (const c of combos(arr, 3)) {
     if (new Set(c.map((x) => x.suit)).size !== 3) continue
     const lows = c.map((x) => x.low).sort((a, b) => a - b)
-    if (lows[0] === 1 && lows[1] === 4 && lows[2] === 7) add('mixedStraight')
-    if (lows[1] === lows[0] + 1 && lows[2] === lows[1] + 1) add('mixedShiftedChows')
+    if (!mixedStraight && lows[0] === 1 && lows[1] === 4 && lows[2] === 7) { add('mixedStraight'); mixedStraight = true }
+    if (!mixedShifted && lows[1] === lows[0] + 1 && lows[2] === lows[1] + 1) { add('mixedShiftedChows'); mixedShifted = true }
   }
 }
 

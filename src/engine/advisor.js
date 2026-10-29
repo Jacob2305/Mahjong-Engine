@@ -13,7 +13,8 @@ import { evaluateDiscards } from './discardEval.js';
 import { evaluateMeld } from './meldEval.js';
 import { rankTargetHands } from './targetHands.js';
 import { bestScore, MIN_POINTS } from './scoring.js';
-import { legalWinGoals } from './idealHand.js';
+import { assemble } from './idealHand.js';
+import { findTargets, evaluateHand, distinctPlans, estimateDrawsLeft } from './planner.js';
 
 // Every tile that structurally completes the hand, with its MCR point value.
 // In MCR a completion only counts as a WIN when it scores >= 8 points.
@@ -76,15 +77,18 @@ export function advise(gameState) {
   const counts = idsToCounts(handIds);
   const m = melds.length;
   const scoreCtx = { seatWind, prevalentWind };
+  // Draws you probably have left; the simulator passes the exact number.
+  const drawsLeft = context.drawsLeft ?? estimateDrawsLeft(discards);
 
   // 14-tile (mod 3 == 2) -> discard mode.
   const discardMode = handIds.length % 3 === 2;
 
   let recommendedDiscard = null;
   let playingCounts = counts;
+  let chosenPlans = null; // the plans the discard decision was based on
 
   if (discardMode && handIds.length > 0) {
-    const evald = evaluateDiscards(counts, melds, pool, scoreCtx);
+    const evald = evaluateDiscards(counts, melds, pool, scoreCtx, { drawsLeft });
     if (evald.recommended) {
       recommendedDiscard = {
         tile: idToTile(evald.recommended.id),
@@ -92,7 +96,9 @@ export function advise(gameState) {
         reason: evald.reason,
         shantenAfter: evald.recommended.shantenAfter,
         outsAfter: evald.recommended.outs,
+        chance: evald.recommended.planValue,
       };
+      chosenPlans = evald.recommended.plans;
       playingCounts = counts.slice();
       playingCounts[TILE_INDEX[evald.recommended.id]]--;
     }
@@ -133,25 +139,19 @@ export function advise(gameState) {
     };
   }
 
-  // The concrete hands we're going for: closest complete, legal (>=8pt) wins,
-  // each a distinct direction with its own fan combination. The first is the
-  // primary plan; the rest are realistic alternatives.
-  const goals = legalWinGoals(playingCounts, melds, pool, scoreCtx, {
-    maxMissing: 5,
-    maxGoals: 4,
-  });
+  // The concrete hands we're going for: legal (8+ point) plans that only need
+  // tiles that are still live, best chance first. With 14 tiles these are the
+  // exact plans the discard was chosen for; otherwise search the current hand.
+  if (!chosenPlans) {
+    const targets = findTargets(playingCounts, melds, scoreCtx, { maxMissing: 5 });
+    chosenPlans = distinctPlans(evaluateHand(playingCounts, targets, pool, drawsLeft).goals, 4);
+  }
+  const goals = chosenPlans.map((g) => ({
+    ...assemble(playingCounts, melds, pool, g),
+    chance: g.chance,
+  }));
   const idealHand = goals[0] || null;
   const alternativeGoals = goals.slice(1);
-
-  // Tie the discard reason to the goal so it reads as a plan, not a one-off.
-  if (recommendedDiscard && idealHand) {
-    recommendedDiscard.reason +=
-      idealHand.missing === 0
-        ? ` This finishes ${idealHand.headline} — you're complete.`
-        : ` This keeps you aimed at ${idealHand.headline} (${idealHand.missing} tile${
-            idealHand.missing === 1 ? '' : 's'
-          } still needed).`;
-  }
 
   // Legacy archetype list (kept for engine tests; UI uses goals instead).
   const targetHands = rankTargetHands(playingCounts, melds, pool, seatWind, prevalentWind);

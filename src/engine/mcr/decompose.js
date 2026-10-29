@@ -42,7 +42,8 @@ function makeSet(type, tiles) {
         ? 'wind'
         : 'dragon',
     // chow value = lowest tile value; pung/kong value = the repeated tile value
-    value: type === 'chow' ? Number(a[1]) : a.length === 2 ? a[1] : Number(a[1]),
+    // (suited tiles get a number; winds/dragons keep their letter: 'e', 'r', ...)
+    value: isSuited(a) ? Number(a[1]) : a[1],
   }
 }
 

@@ -1,10 +1,12 @@
 // ---------------------------------------------------------------------------
 // Discard evaluator.
 //
-// For a 14-tile concealed hand (length-34 counts), rank every possible discard
-// by a composite score blending resulting shanten, number of live outs, and a
-// small bonus for shedding isolated/dead tiles. Generates a human reason for
-// the top pick.
+// For a 14-tile concealed hand (length-34 counts), rank every possible discard.
+// Main criterion (planner.js): after this discard, how likely is it that at least
+// one of your best few legal (8+ point) plans comes in, counting only tiles that
+// are still live. Tie-break / fallback when no 8-point hand is in reach yet: tile
+// efficiency (resulting shanten, live outs, isolated/dead tiles).
+// The reason text is built from the same numbers that made the decision.
 // ---------------------------------------------------------------------------
 
 import { TILE_IDS, tileName, isSuited, isHonor } from './tiles.js';
@@ -12,6 +14,7 @@ import { getShanten } from './shanten.js';
 import { getUsefulTiles, countLiveOuts } from './usefulTiles.js';
 import { liveOf } from './tilePool.js';
 import { bestScore, MIN_POINTS } from './scoring.js';
+import { findTargets, evaluateHand, planValue } from './planner.js';
 
 // Does any tile complete this 13-tile hand for a legal (>= 8 pt) win?
 // Returns { hasLegal, bestPoints } where bestPoints is the max over completions.
@@ -51,7 +54,9 @@ function isIsolated(counts, i) {
   return true;
 }
 
-export function evaluateDiscards(counts, melds, pool, ctx = {}) {
+// opts.drawsLeft: how many draws you probably have left (see planner.estimateDrawsLeft).
+export function evaluateDiscards(counts, melds, pool, ctx = {}, opts = {}) {
+  const drawsLeft = opts.drawsLeft ?? 12;
   const openMelds = melds.length;
   const options = [];
   const work = counts.slice();
@@ -110,44 +115,83 @@ export function evaluateDiscards(counts, melds, pool, ctx = {}) {
     });
   }
 
+  // --- plans: one target search, then rate every discard against it ---------
+  let targets = findTargets(counts, melds, ctx, { maxMissing: 5 });
+  if (targets.length < 3) {
+    targets = findTargets(counts, melds, ctx, { maxMissing: 6, nodeLimit: 400_000 });
+  }
+  for (const o of options) {
+    const after = counts.slice();
+    after[o.index]--;
+    const { goals } = evaluateHand(after, targets, pool, drawsLeft);
+    const pv = planValue(goals);
+    o.planValue = pv.value;
+    o.plans = pv.plans;
+    o.keepsTarget = (g) => g.target[o.index] <= after[o.index];
+  }
+  // Plans dominate; efficiency (score up to ~8000) only separates near-ties.
+  for (const o of options) o.total = o.planValue + o.score * 1e-6;
+
   options.sort(
     (a, b) =>
-      b.score - a.score ||
+      b.total - a.total ||
       a.shantenAfter - b.shantenAfter ||
       b.outs - a.outs,
   );
 
   const top = options[0] || null;
-  const reason = top ? buildReason(top) : '';
-  return { ranked: options, recommended: top, reason };
+  // A plan that would be closest but is impossible now (a tile it needs is all gone).
+  const lost = evaluateHand(counts, targets, pool, drawsLeft).dead[0] || null;
+  const reason = top ? buildReason(top, options, lost) : '';
+  return { ranked: options, recommended: top, reason, drawsLeft };
 }
 
-function buildReason(opt) {
-  const parts = [];
-  if (opt.isolated) {
-    parts.push('it is isolated with no neighbouring tiles to build a set');
+// "3-Bamboo, East Wind ×2"
+function needText(need) {
+  return need
+    .map((n) => `${tileName(n.id)}${n.count > 1 ? ` ×${n.count}` : ''} (${n.live} left)`)
+    .join(', ');
+}
+const pct = (x) => `${Math.max(1, Math.round(x * 100))}%`;
+
+function buildReason(opt, ranked, lost) {
+  const name = opt.name;
+  const plan = opt.plans[0];
+
+  if (!plan || opt.planValue < 0.005) {
+    // No 8-point hand in reach yet: say so, and explain the efficiency choice.
+    const parts = [];
+    if (opt.isolated) parts.push('it connects to nothing in your hand');
+    if (opt.tileLive <= 1) parts.push(opt.tileLive === 0 ? 'every other copy is already gone' : 'only 1 other copy is left');
+    if (!parts.length) parts.push('it is the least useful tile for your shape');
+    return `Throw ${name}: ${parts.join(', ')}. No 8-point hand is close yet, so this keeps the most ` +
+      `flexible shape (${opt.shantenAfter <= 0 ? 'ready' : `${opt.shantenAfter} tile${opt.shantenAfter === 1 ? '' : 's'} from ready`}, ` +
+      `${opt.outs} useful draws left).`;
   }
-  if (opt.tileLive <= 1) {
-    parts.push(
-      opt.tileLive === 0
-        ? 'all copies are already gone (dead)'
-        : 'only 1 live copy remains',
+
+  const sentences = [];
+  if (lost && lost.missing < plan.missing && lost.headline !== plan.headline) {
+    sentences.push(`${lost.headline} is out: every ${tileName(lost.deadTile)} is gone.`);
+  }
+  sentences.push(
+    `Plan: ${plan.headline} (${plan.points} pts${plan.selfDrawOnly ? ', only if you draw the winning tile yourself' : ''}), ` +
+      `needs ${needText(plan.need)}, about ${pct(plan.chance)} to come in.`,
+  );
+  const backups = opt.plans.slice(1, 3);
+  if (backups.length) {
+    sentences.push(
+      `Backup: ${backups.map((b) => `${b.headline} (needs ${b.need.length ? needText(b.need) : 'nothing more'})`).join('; ')}.`,
     );
   }
-  if (parts.length === 0) {
-    parts.push('it contributes least to your strongest shape');
+  // Why this tile and not another.
+  const usedBy = opt.plans.filter((g) => !opt.keepsTarget(g)).map((g) => g.headline);
+  let why;
+  if (!usedBy.length) why = `it isn't part of any of these plans`;
+  else {
+    const next = ranked.find((o) => o !== opt);
+    why = `it's the tile your plans need least` +
+      (next ? ` (throwing ${next.name} instead would drop your chances to ${pct(next.planValue)})` : '');
   }
-  let shantenWord;
-  if (opt.shantenAfter <= 0) {
-    shantenWord = opt.valueShort
-      ? `it leaves you one tile from complete, but the best that shape scores is ${opt.tenpaiPoints}pts (under the 8-point minimum) — so keep building value`
-      : 'it leaves you ready to win with a legal 8-point-plus hand';
-  } else {
-    shantenWord = `it leaves you ${opt.shantenAfter} useful tile${
-      opt.shantenAfter === 1 ? '' : 's'
-    } from being ready`;
-  }
-  return `Throw ${opt.name} — ${parts.join(', ')}; ${shantenWord}, with ${opt.outs} live draw${
-    opt.outs === 1 ? '' : 's'
-  } that help.`;
+  sentences.unshift(`Throw ${name}: ${why}. Chance one of your plans comes in: ${pct(opt.planValue)}.`);
+  return sentences.join(' ');
 }

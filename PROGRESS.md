@@ -55,16 +55,22 @@ needed tiles die, explanations that match the real decision, measured by `npm ru
       `fix-fan-table` there, pushed, not merged yet): Two Concealed Pungs 4→2, Two Concealed
       Kongs 2→8; added All Simples (2), Concealed Kong (2), Two Melded Kongs (4).
       Still missing: Last Tile 和绝张 (needs a UI flag).
-- [ ] 3. Goals respect the wall (`idealHand.js`): no goal may need a tile with 0 live copies;
-      rank goals by reach likelihood × value.
-- [ ] 4. Value-aware discards with backup plans (`discardEval.js`).
-- [ ] 5. Explanations built from the actual decision.
+- [x] 3. Goals respect the wall: `idealHand.js` rejects goals needing more copies than are
+      live; new `planner.js` finds targets once, then rates them per hand by the chance of
+      drawing what's missing (`evaluateHand`). Wins legal only by self-draw count, flagged.
+- [x] 4. Value-aware discards with backup plans: `discardEval.js` picks the discard that
+      maximises the chance at least one of the top 3 DIFFERENT plans comes in
+      (`planValue`); old tile efficiency is the tie-break and the fallback early on.
+- [x] 5. Explanations built from the decision: plan, backups, needed tiles with live
+      counts, chances, why this tile, and "X is out: every Y is gone" when switching.
+      `advise()` builds the plan cards from the same plans (`chance` added).
 - [ ] 6. Speed check (< 1 s per decision), Web Worker if needed.
 - [ ] 7. Verify (tests, sim before/after, browser) and merge.
 
-Known bug to fix in step 3 (probe): with both remaining Red Dragons discarded, the advice
-said "keeps you aimed at Mixed Straight (1 tile still needed)" and the needed tile was the
-dead Red Dragon.
+Fixed (step 3): the dead-Red-Dragon plan bug; regression tests in `planner.test.mjs`.
+More calculator scorer bugs found and fixed on its `fix-fan-table` branch (copied into
+`src/engine/mcr/`): suited pung values were text, so Pung of Terminals and Triple Pung never
+scored; Mixed Straight / Mixed Shifted Chows could count twice.
 
 ## Engine review (2026-10-29)
 How the advisor picks a discard (`discardEval.js`): for each tile, the resulting shanten
