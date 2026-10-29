@@ -1,8 +1,15 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState } from 'react';
 import Tile from './Tile.jsx';
 import { TILE_IDS } from '../engine/tiles.js';
 
-const ALL_IDS = TILE_IDS;
+// Tile groups, one shown at a time to keep the screen short.
+const GROUPS = [
+  { key: 'sou', cn: '条', label: 'Sticks', ids: TILE_IDS.filter((id) => id.startsWith('sou')) },
+  { key: 'man', cn: '万', label: 'Numbers', ids: TILE_IDS.filter((id) => id.startsWith('man')) },
+  { key: 'pin', cn: '筒', label: 'Dots', ids: TILE_IDS.filter((id) => id.startsWith('pin')) },
+  { key: 'honor', cn: '字', label: 'Symbols', ids: TILE_IDS.filter((id) => id.startsWith('wind') || id.startsWith('dragon')) },
+];
+let lastGroup = 'sou'; // remembered while the page is open
 
 const HOLD_MS = 420; // press-and-hold threshold
 const MOVE_TOL = 12; // px of movement that cancels a press (i.e. a scroll)
@@ -76,16 +83,42 @@ const ZONE_LABEL = { hand: 'your Hand', discards: 'Seen Discards' };
 export default function TilePicker({ remaining, onPick, zone }) {
   const tapTarget = zone === 'hand' ? 'hand' : 'discards';
   const holdTarget = tapTarget === 'hand' ? 'discards' : 'hand';
+  const [group, setGroup] = useState(lastGroup);
+  const choose = (key) => {
+    lastGroup = key;
+    setGroup(key);
+  };
+  const shown = GROUPS.find((g) => g.key === group) || GROUPS[0];
 
   return (
-    <div className="space-y-1.5">
+    <div className="space-y-2">
+      <div className="grid grid-cols-4 gap-1 rounded-lg bg-jade-deep/60 p-1" role="tablist">
+        {GROUPS.map((g) => {
+          const on = g.key === shown.key;
+          return (
+            <button
+              key={g.key}
+              type="button"
+              role="tab"
+              aria-selected={on}
+              onClick={() => choose(g.key)}
+              className={`rounded-md py-1.5 leading-none transition-colors ${
+                on ? 'bg-gold text-jade-dark' : 'text-cream/60'
+              }`}
+            >
+              <span className="block text-base font-bold">{g.cn}</span>
+              <span className="block text-[10px] mt-0.5">{g.label}</span>
+            </button>
+          );
+        })}
+      </div>
       <p className="text-[11px] text-cream/55 leading-snug">
         <span className="text-gold font-semibold">Tap</span> → {ZONE_LABEL[tapTarget]}
         <span className="text-cream/30"> · </span>
         <span className="text-gold font-semibold">Press &amp; hold</span> → {ZONE_LABEL[holdTarget]}
       </p>
       <div className="flex flex-wrap gap-1 justify-center">
-        {ALL_IDS.map((id) => (
+        {shown.ids.map((id) => (
           <PickerTile
             key={id}
             id={id}

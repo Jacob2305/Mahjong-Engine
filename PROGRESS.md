@@ -64,8 +64,16 @@ needed tiles die, explanations that match the real decision, measured by `npm ru
 - [x] 5. Explanations built from the decision: plan, backups, needed tiles with live
       counts, chances, why this tile, and "X is out: every Y is gone" when switching.
       `advise()` builds the plan cards from the same plans (`chance` added).
+- [x] Home screen (asked for mid-way): no box selected at start and the tile picker is
+      hidden; tap My Hand / Seen Discards to open it, tap the same box again to close.
+      Picker split into groups: Sticks 条 / Numbers 万 / Dots 筒 / Symbols 字 (remembers
+      the last group). Tapping a tile inside a box no longer toggles the box.
 - [ ] 6. Speed check (< 1 s per decision), Web Worker if needed.
 - [ ] 7. Verify (tests, sim before/after, browser) and merge.
+- [ ] Next up (agreed): readable advice — three short lines (Why / Plan / Backup), plan names
+      from the real pattern (not Concealed Hand / Self-Drawn), chances labelled "rough".
+- [ ] Rerun old-vs-new sim (last attempt only ran the old engine): old = a worktree of
+      `main` with the fixed `src/engine/mcr/` + `scripts/simulate.mjs` copied in.
 
 Fixed (step 3): the dead-Red-Dragon plan bug; regression tests in `planner.test.mjs`.
 More calculator scorer bugs found and fixed on its `fix-fan-table` branch (copied into

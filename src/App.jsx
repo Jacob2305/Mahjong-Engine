@@ -39,7 +39,10 @@ const DEFAULT_CONTEXT = {
 
 export default function App() {
   const saved = loadState();
-  const [zone, setZone] = useState('hand');
+  // Which box new tiles go into; null = none selected and the picker is hidden.
+  const [zone, setZone] = useState(null);
+  // Tapping the selected box again closes it.
+  const toggleZone = (z) => setZone((cur) => (cur === z ? null : z));
   const [handIds, setHandIds] = useState(saved?.handIds || []);
   const [melds, setMelds] = useState(saved?.melds || []);
   const [discards, setDiscards] = useState(saved?.discards || {});
@@ -384,7 +387,7 @@ export default function App() {
           onRemoveTile={discardFromHand}
           onRemoveMeld={removeMeld}
           active={zone === 'hand'}
-          onActivate={() => setZone('hand')}
+          onActivate={() => toggleZone('hand')}
         />
 
         <MeldBuilder onAdd={addMeld} remaining={remaining} />
@@ -395,7 +398,7 @@ export default function App() {
             discards={discards}
             onRemove={removeDiscard}
             active={zone === 'discards'}
-            onActivate={() => setZone('discards')}
+            onActivate={() => toggleZone('discards')}
             lastId={lastDiscardId}
             myDiscardId={myDiscardId}
           />
@@ -408,10 +411,16 @@ export default function App() {
           </div>
         )}
 
-        {/* Tile picker */}
-        <div className="rounded-lg bg-jade-dark/40 p-2.5">
-          <TilePicker remaining={remaining} onPick={pickTile} zone={zone} />
-        </div>
+        {/* Tile picker: only while a box is selected */}
+        {zone ? (
+          <div className="rounded-lg bg-jade-dark/40 p-2.5">
+            <TilePicker remaining={remaining} onPick={pickTile} zone={zone} />
+          </div>
+        ) : (
+          <p className="text-center text-[11px] text-cream/40">
+            Tap <b className="text-cream/60">My Hand</b> or <b className="text-cream/60">Seen Discards</b> to add tiles
+          </p>
+        )}
 
         {/* Inline advice / move result (replaces the old popup) */}
         {advice && <AdvisorSheet advice={advice} />}

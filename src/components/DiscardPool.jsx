@@ -20,7 +20,7 @@ export default function DiscardPool({ discards, onRemove, active, onActivate, la
       <div className="flex items-center justify-between mb-1.5 px-0.5">
         <span className={`text-sm font-bold ${active ? 'text-gold' : 'text-cream/80'}`}>
           Seen Discards 牌河
-          {active && <span className="text-[10px] ml-1.5 align-middle">● tapping here</span>}
+          {active && <span className="text-[10px] ml-1.5 align-middle">● adding here · tap to close</span>}
         </span>
         <span className="text-[11px] text-cream/60">{total} tiles seen</span>
       </div>
@@ -38,7 +38,7 @@ export default function DiscardPool({ discards, onRemove, active, onActivate, la
       <div className="min-h-[56px] rounded-lg bg-jade-dark/60 p-2">
         {entries.length === 0 ? (
           <p className="text-cream/40 text-xs py-3 text-center">
-            No discards tracked yet — switch to “Discards” and tap tiles you’ve seen
+            No discards tracked yet — tap this box, then tap tiles you’ve seen thrown
           </p>
         ) : (
           <div className="flex flex-wrap gap-1.5">
@@ -50,7 +50,7 @@ export default function DiscardPool({ discards, onRemove, active, onActivate, la
                 badge={n > 1 ? `×${n}` : null}
                 greenRing={id === myDiscardId}
                 highlight={id !== myDiscardId && id === lastId}
-                onClick={() => onRemove(id)}
+                onClick={(e) => { e.stopPropagation(); onRemove(id); }}
               />
             ))}
           </div>

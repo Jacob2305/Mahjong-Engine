@@ -39,7 +39,7 @@ export default function HandDisplay({
             className={`text-sm font-bold ${active ? 'text-gold' : 'text-cream/80'}`}
           >
             My Hand 手牌
-            {active && <span className="text-[10px] ml-1.5 align-middle">● tapping here</span>}
+            {active && <span className="text-[10px] ml-1.5 align-middle">● adding here · tap to close</span>}
           </span>
           <span className="text-[11px] text-cream/60">
             {concealed} in hand + {melded} melded
@@ -49,7 +49,7 @@ export default function HandDisplay({
         <div className="min-h-[58px] rounded-lg bg-jade-dark/60 p-2">
         {sorted.length === 0 ? (
           <p className="text-cream/40 text-xs py-3 text-center">
-            Tap tiles below to add them to your hand
+            {active ? 'Tap tiles below to add them to your hand' : 'Tap this box to add tiles to your hand'}
           </p>
         ) : (
           <div>
@@ -60,7 +60,7 @@ export default function HandDisplay({
                   id={id}
                   size="md"
                   animateKey={`${id}-${i}`}
-                  onClick={() => onRemoveTile(id)}
+                  onClick={(e) => { e.stopPropagation(); onRemoveTile(id); }}
                 />
               ))}
             </div>
@@ -80,7 +80,7 @@ export default function HandDisplay({
               <button
                 key={mi}
                 type="button"
-                onClick={() => onRemoveMeld(mi)}
+                onClick={(e) => { e.stopPropagation(); onRemoveMeld(mi); }}
                 className="flex items-center gap-0.5 bg-jade-dark/70 rounded-lg p-1 ring-1 ring-gold/40 active:scale-95 transition-transform"
               >
                 <span className="text-[9px] text-gold/80 mr-0.5 font-semibold">
