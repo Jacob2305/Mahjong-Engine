@@ -6,4 +6,6 @@ import react from '@vitejs/plugin-react';
 export default defineConfig({
   plugins: [react()],
   base: './',
+  // onnxruntime-web loads its own WebAssembly; pre-bundling it breaks that.
+  optimizeDeps: { exclude: ['onnxruntime-web'] },
 });

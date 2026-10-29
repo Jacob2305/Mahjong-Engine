@@ -18,7 +18,7 @@ Branch: `on-device-scanner` (merge into `main` when done).
 
 ## Steps
 - [x] 0. Branch + this file
-- [ ] 1. Model + runtime: copy `mahjong-tiles.onnx` into `public/models/`, add
+- [x] 1. Model + runtime: copy `mahjong-tiles.onnx` into `public/models/`, add
       `onnxruntime-web`, remove `@anthropic-ai/sdk`, Vite `optimizeDeps.exclude`
 - [ ] 2. `src/engine/detect.js`: decode model output, map class names to this app's ids,
       split hand row vs discards (+ `detect.test.mjs`)
@@ -29,7 +29,9 @@ Branch: `on-device-scanner` (merge into `main` when done).
 - [ ] 6. Verify end to end (tests, build, phone-size browser test), merge to `main`
 
 ## Where to pick up
-Start step 1.
+Start step 2. (Step 1 done: model in `public/models/`, onnxruntime-web 1.31.1 installed,
+Anthropic SDK removed from package.json, but `vision.js` still imports it until step 3,
+so the build is expected to fail until then.)
 
 ## How to run and check
 ```bash
