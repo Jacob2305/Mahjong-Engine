@@ -84,15 +84,18 @@ needed tiles die, explanations that match the real decision, measured by `npm ru
       are now div role=button).
 - [x] Scan button renamed "📷 Scan hand/table" with one line under it; long directions
       removed. "Make My Move" now closes the selected box (picker hidden).
-- [ ] NEXT (agreed with user, in order):
-      1. Chance model counts claims: pung tiles and the winning tile can come from any of 3
-         opponents' discards, chow tiles only from the left player, pair tiles drawn.
-      2. Plan value as you'd really finish: plans still 8+ after claiming (no Concealed Hand)
-         rank highest; fully-concealed-only lower; self-draw-only lowest.
-      3. Claims decided by the planner (plan value if you claim vs skip).
-      4. 4-player simulator (3 simple opponents, claims, wins off discards) to measure.
-- [ ] Claims still use the old logic (`meldEval.js`: shape distance + a goal check). Next:
-      decide claims with the planner (compare plan value if you claim vs skip).
+- [x] 1–2. Chance model counts claims (`planner.js` `evaluateHand`): per missing tile by set
+      type — pung's last tile from any of 3 opponents, chow's last tile from the left player,
+      pair tiles drawn; the final winning tile from anyone unless self-draw only. Targets
+      carry `finish`: 'open' (still 8+ after claiming, no Concealed Hand), 'concealed'
+      (only the winning tile may be claimed), 'selfdraw'. Chicken Hand never planned.
+      Plan cards say "keep it concealed (no claims)" / "only if you draw the last tile".
+- [x] 3. Claims decided by the planner (`claimEval.js` `planClaim`, used by `advise()`):
+      plan value if you skip vs. after each pung/chow + best discard; claims if it adds
+      >1 point of chance. Reason: "Take the Red as a pung — your chance of an 8+ hand goes
+      from 38% to 71% (plan: …), then throw …". `meldEval.js` no longer used by advise.
+- [ ] 4. 4-player simulator (3 simple opponents, claims, wins off discards) to measure
+      old (`main`) vs new.
 - [ ] Rerun old-vs-new sim (last attempt only ran the old engine): old = a worktree of
       `main` with the fixed `src/engine/mcr/` + `scripts/simulate.mjs` copied in.
 

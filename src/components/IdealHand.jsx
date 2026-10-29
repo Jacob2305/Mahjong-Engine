@@ -9,7 +9,7 @@ const GROUP_LABEL = { chow: 'run', pung: 'triplet', kong: 'kong', pair: 'pair' }
 export default function IdealHand({ ideal, label }) {
   const [open, setOpen] = useState(false);
   if (!ideal) return null;
-  const { groups, points, fans, fanPoints, missing, headline, chance, selfDrawOnly } = ideal;
+  const { groups, points, fans, fanPoints, missing, headline, chance, selfDrawOnly, finish } = ideal;
   const scoring = fanPoints || fans.map((name) => ({ name, points: null }));
   const toggle = () => setOpen((o) => !o);
 
@@ -31,6 +31,7 @@ export default function IdealHand({ ideal, label }) {
               {missing === 0 ? 'complete — declare it 🀄' : `${missing} tile${missing === 1 ? '' : 's'} to go`}
               {typeof chance === 'number' && missing > 0 && ` · ~${Math.max(1, Math.round(chance * 100))}% rough chance`}
               {selfDrawOnly && ' · only if you draw the last tile'}
+              {finish === 'concealed' && ' · keep it concealed (no claims)'}
             </div>
           </div>
           <div className="shrink-0 text-right">

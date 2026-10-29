@@ -10,7 +10,7 @@ import { TILE_IDS, TILE_INDEX, idsToCounts, idToTile } from './tiles.js';
 import { buildTilePool, liveOf } from './tilePool.js';
 import { getShanten } from './shanten.js';
 import { evaluateDiscards } from './discardEval.js';
-import { evaluateMeld } from './meldEval.js';
+import { planClaim } from './claimEval.js';
 import { rankTargetHands } from './targetHands.js';
 import { bestScore, MIN_POINTS } from './scoring.js';
 import { assemble } from './idealHand.js';
@@ -152,6 +152,7 @@ export function advise(gameState) {
     ...assemble(playingCounts, melds, pool, g),
     chance: g.chance,
     selfDrawOnly: !!g.selfDrawOnly,
+    finish: g.finish,
   }));
   const idealHand = goals[0] || null;
   const alternativeGoals = goals.slice(1);
@@ -162,10 +163,11 @@ export function advise(gameState) {
   // Meld advice --------------------------------------------------------------
   let meldAdvice = null;
   if (lastDiscard) {
-    const res = evaluateMeld(counts, melds, pool, lastDiscard, {
+    const res = planClaim(counts, melds, pool, lastDiscard, {
       seatWind,
       prevalentWind,
       canChow,
+      drawsLeft,
     });
     meldAdvice = res;
   }

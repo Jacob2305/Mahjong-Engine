@@ -199,7 +199,7 @@ function buildReason(opt, ranked, lost) {
   }
   const next = ranked.find((o) => o !== opt);
   details.push(
-    `Rough chance one of these comes in from your own draws: ${pct(opt.planValue)}` +
+    `Rough chance one of these comes in (draws and claims): ${pct(opt.planValue)}` +
       (next ? ` (throwing ${next.name} instead: ${pct(next.planValue)}).` : '.'),
   );
   return { short, details };

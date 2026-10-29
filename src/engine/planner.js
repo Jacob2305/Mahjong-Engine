@@ -60,8 +60,18 @@ export function findTargets(counts, melds = [], ctx = {}, opts = {}) {
       if (sc.points < MIN_POINTS) return;
       selfDrawOnly = true;
     }
+    // Chicken Hand (8 only when nothing else scores) breaks the moment any point
+    // is added, e.g. by the wait or a self-draw, so never plan for it.
+    if (sc.reasons.some((r) => r.startsWith('Chicken Hand'))) return;
+    // Claiming a set opens the hand and loses Concealed Hand (+2); is it still 8+?
+    const concealedBonus = sc.reasons.some((r) => r.startsWith('Concealed Hand')) ? 2 : 0;
+    const openLegal = !selfDrawOnly && melds.length === 0 ? sc.points - concealedBonus >= MIN_POINTS : !selfDrawOnly;
     found.set(key, {
       selfDrawOnly,
+      openLegal,
+      // How it can be finished: 'open' (claims allowed), 'concealed' (only the
+      // winning tile may be claimed) or 'selfdraw' (every tile drawn yourself).
+      finish: selfDrawOnly ? 'selfdraw' : openLegal ? 'open' : 'concealed',
       key,
       target: c,
       picks: picks.map((p) => ({ ...p })),
@@ -122,34 +132,83 @@ export function findTargets(counts, melds = [], ctx = {}, opts = {}) {
     .slice(0, maxTargets);
 }
 
-// P(at least k successes in n draws), each draw hitting with probability p.
+// P(at least k successes in n tries), each hitting with probability p.
 function atLeast(k, n, p) {
   if (k <= 0) return 1;
   if (k > n || p <= 0) return 0;
+  if (p >= 1) return 1;
   let below = 0;
   let term = Math.pow(1 - p, n); // P(X = 0)
   for (let x = 0; x < k; x++) {
     below += term;
-    term *= ((n - x) / (x + 1)) * (p / (1 - p || 1e-9));
+    term *= ((n - x) / (x + 1)) * (p / (1 - p));
   }
   return Math.max(0, 1 - below);
 }
 
-// How many draws you likely have left, from how many discards have been logged
+// How many draws you probably have left, from how many discards have been logged
 // (about 70 tiles get drawn after the deal, shared by 4 players).
 export function estimateDrawsLeft(discards = {}) {
   const thrown = Object.values(discards).reduce((a, b) => a + b, 0);
   return Math.max(2, Math.min(18, Math.round((70 - thrown) / 4)));
 }
 
+// Each turn you draw one tile, and each of the 3 opponents throws one. Opponents
+// throw tiles they don't want, so a given live tile shows up in their discards a
+// bit less often than in your draws.
+const OPPONENTS = 3;
+const DISCARD_RATE = 0.5;
+
+// Which set of the target each missing tile is for (pung / chow / pair).
+function missingBySet(counts, t) {
+  const remain = counts.slice();
+  const take = (idx) => {
+    if (remain[idx] > 0) {
+      remain[idx]--;
+      return null;
+    }
+    return idx;
+  };
+  const groups = [];
+  for (const p of t.picks) {
+    const idxs = p.type === 'pung' ? [p.idx, p.idx, p.idx] : [p.idx, p.idx + 1, p.idx + 2];
+    const miss = idxs.map(take).filter((x) => x !== null);
+    if (miss.length) groups.push({ kind: p.type, miss });
+  }
+  const pairMiss = [t.pairIdx, t.pairIdx].map(take).filter((x) => x !== null);
+  if (pairMiss.length) groups.push({ kind: 'pair', miss: pairMiss });
+  return groups;
+}
+
+// Chance of completing one set within `turns`. The set's LAST missing tile may be
+// claimed (pung: from any opponent, chow: from the left player) when the plan
+// allows claims; earlier missing tiles must be drawn. Pairs are drawn.
+function setChance(group, livePer, unseen, turns, claimsAllowed) {
+  const miss = group.miss;
+  const extra =
+    !claimsAllowed || group.kind === 'pair' ? 0 : group.kind === 'pung' ? OPPONENTS * DISCARD_RATE : DISCARD_RATE;
+  let chance = 1;
+  miss.forEach((idx, k) => {
+    const p = livePer[idx] / unseen;
+    const last = k === miss.length - 1;
+    const tries = last ? Math.round(turns * (1 + extra)) : turns;
+    chance *= atLeast(1, tries, p);
+  });
+  return chance;
+}
+
 // For a hand (concealed counts), rate every target. Returns targets that can
 // still be completed, each with { need: [{ idx, id, count, live }], missing, chance },
 // best first, plus `dead`: closest targets that are impossible because a tile they
 // need is all gone (for "switching plans" explanations).
+//
+// Chance model: you draw once per turn; pung tiles can also be claimed from any
+// opponent's discard and chow tiles from the left player's, but only for plans
+// that stay 8+ once the hand is open. The very last tile (the win) can be taken
+// from any player's discard unless the plan only counts as a self-draw.
 export function evaluateHand(counts, targets, pool, drawsLeft) {
-  let unseen = 0;
-  for (let i = 0; i < 34; i++) unseen += liveOf(pool, TILE_IDS[i]);
-  unseen = Math.max(1, unseen);
+  const livePer = TILE_IDS.map((id) => liveOf(pool, id));
+  const unseen = Math.max(1, livePer.reduce((a, b) => a + b, 0));
 
   const ok = [];
   const dead = [];
@@ -160,20 +219,30 @@ export function evaluateHand(counts, targets, pool, drawsLeft) {
     for (let i = 0; i < 34; i++) {
       const k = t.target[i] - counts[i];
       if (k <= 0) continue;
-      const live = liveOf(pool, TILE_IDS[i]);
-      if (k > live) impossible = impossible || TILE_IDS[i];
-      need.push({ idx: i, id: TILE_IDS[i], count: k, live });
+      if (k > livePer[i]) impossible = impossible || TILE_IDS[i];
+      need.push({ idx: i, id: TILE_IDS[i], count: k, live: livePer[i] });
       missing += k;
     }
     if (impossible) {
       dead.push({ ...t, missing, deadTile: impossible });
       continue;
     }
-    if (missing > drawsLeft) continue;
-    // Chance of drawing every needed tile (treated as independent). Each draw
-    // also needs a junk tile to throw, which a hand short of its target always has.
-    let chance = 1;
-    for (const n of need) chance *= atLeast(n.count, drawsLeft, n.live / unseen);
+    const finish = t.finish || 'open';
+    // Claims save draws, so an open plan can need a few more tiles than draws left.
+    if (missing > drawsLeft * (finish === 'open' ? 2 : 1)) continue;
+
+    let chance;
+    if (missing === 1) {
+      // One tile from winning: draw it, or (unless self-draw only) win on anyone's discard.
+      const p = need[0].live / unseen;
+      const extra = finish === 'selfdraw' ? 0 : OPPONENTS * DISCARD_RATE;
+      chance = atLeast(1, Math.round(drawsLeft * (1 + extra)), p);
+    } else {
+      chance = 1;
+      for (const g of missingBySet(counts, t)) {
+        chance *= setChance(g, livePer, unseen, drawsLeft, finish === 'open');
+      }
+    }
     ok.push({ ...t, need, missing, chance });
   }
   // Mostly about winning at all; a bigger hand is a small bonus.
