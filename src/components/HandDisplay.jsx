@@ -77,11 +77,13 @@ export default function HandDisplay({
           <span className="text-[11px] text-cream/60">Melds (tap to remove)</span>
           <div className="flex flex-wrap gap-2">
             {melds.map((meld, mi) => (
-              <button
+              <div
                 key={mi}
-                type="button"
+                role="button"
+                tabIndex={0}
                 onClick={(e) => { e.stopPropagation(); onRemoveMeld(mi); }}
-                className="flex items-center gap-0.5 bg-jade-dark/70 rounded-lg p-1 ring-1 ring-gold/40 active:scale-95 transition-transform"
+                onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && onRemoveMeld(mi)}
+                className="flex items-center gap-0.5 bg-jade-dark/70 rounded-lg p-1 ring-1 ring-gold/40 active:scale-95 transition-transform cursor-pointer"
               >
                 <span className="text-[9px] text-gold/80 mr-0.5 font-semibold">
                   {MELD_LABEL[meld.type]}
@@ -89,7 +91,7 @@ export default function HandDisplay({
                 {meld.tiles.map((t, ti) => (
                   <Tile key={ti} id={t} size="sm" />
                 ))}
-              </button>
+              </div>
             ))}
           </div>
         </div>

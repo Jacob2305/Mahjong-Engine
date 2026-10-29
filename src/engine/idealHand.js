@@ -83,6 +83,8 @@ export function assemble(counts, melds, pool, cand) {
     missing: cand.missing,
     points: cand.points,
     fans: cand.reasons.map(stripPts),
+    // Each scoring pattern with its points: [{ name: 'Dragon Pung 箭刻', points: 2 }].
+    fanPoints: cand.reasons.map((r) => ({ name: stripPts(r), points: Number((r.match(/\+(\d+)$/) || [0, 0])[1]) })),
     headline: headlineOf(cand.reasons),
     groups,
     needTiles: groups.flatMap((g) => g.tiles).filter((t) => !t.have),

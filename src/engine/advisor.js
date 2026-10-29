@@ -151,6 +151,7 @@ export function advise(gameState) {
   const goals = chosenPlans.map((g) => ({
     ...assemble(playingCounts, melds, pool, g),
     chance: g.chance,
+    selfDrawOnly: !!g.selfDrawOnly,
   }));
   const idealHand = goals[0] || null;
   const alternativeGoals = goals.slice(1);

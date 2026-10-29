@@ -78,6 +78,10 @@ needed tiles die, explanations that match the real decision, measured by `npm ru
       (name, pts, rough chance, small tile strip; tap for sets, still-needed tiles, fans).
       Plan names skip situational fans (`headlineOf` in `idealHand.js`). Claim wording now
       says "N tiles from a complete hand" instead of "ready to win".
+- [x] Plan card details: opening a card hides the small strip and shows the big layout plus
+      each scoring pattern with its points ("Dragon Pung (2pt)"); "Still need" removed;
+      self-draw-only plans say so. Fixed nested <button>s (plan card header and meld chips
+      are now div role=button).
 - [ ] Claims still use the old logic (`meldEval.js`: shape distance + a goal check). Next:
       decide claims with the planner (compare plan value if you claim vs skip).
 - [ ] Rerun old-vs-new sim (last attempt only ran the old engine): old = a worktree of

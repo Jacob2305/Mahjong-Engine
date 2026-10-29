@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import Tile from './Tile.jsx';
-import { tileName } from '../engine/tiles.js';
 
 const GROUP_LABEL = { chow: 'run', pung: 'triplet', kong: 'kong', pair: 'pair' };
 
@@ -10,22 +9,18 @@ const GROUP_LABEL = { chow: 'run', pung: 'triplet', kong: 'kong', pair: 'pair' }
 export default function IdealHand({ ideal, label }) {
   const [open, setOpen] = useState(false);
   if (!ideal) return null;
-  const { groups, points, fans, missing, needTiles, headline, chance } = ideal;
-
-  // Needed tiles grouped by kind: "3-Bamboo ×2 (3 left)".
-  const needs = [];
-  for (const t of needTiles) {
-    const n = needs.find((x) => x.id === t.id);
-    if (n) n.count++;
-    else needs.push({ id: t.id, count: 1, live: t.live });
-  }
+  const { groups, points, fans, fanPoints, missing, headline, chance, selfDrawOnly } = ideal;
+  const scoring = fanPoints || fans.map((name) => ({ name, points: null }));
+  const toggle = () => setOpen((o) => !o);
 
   return (
     <div className="rounded-xl bg-jade-dark/70 ring-1 ring-gold/25">
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        className="w-full text-left p-2.5"
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={toggle}
+        onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && toggle()}
+        className="w-full text-left p-2.5 cursor-pointer"
         aria-expanded={open}
       >
         <div className="flex items-start justify-between gap-2">
@@ -35,6 +30,7 @@ export default function IdealHand({ ideal, label }) {
             <div className="text-[10px] text-cream/55">
               {missing === 0 ? 'complete — declare it 🀄' : `${missing} tile${missing === 1 ? '' : 's'} to go`}
               {typeof chance === 'number' && missing > 0 && ` · ~${Math.max(1, Math.round(chance * 100))}% rough chance`}
+              {selfDrawOnly && ' · only if you draw the last tile'}
             </div>
           </div>
           <div className="shrink-0 text-right">
@@ -44,7 +40,8 @@ export default function IdealHand({ ideal, label }) {
           </div>
         </div>
 
-        {/* The finished hand at a glance */}
+        {/* The finished hand at a glance (the big layout replaces it when open) */}
+        {!open && (
         <div className="mt-2 flex flex-wrap gap-x-1 gap-y-1">
           {groups.map((g, gi) => (
             <div key={gi} className="flex gap-px">
@@ -54,7 +51,8 @@ export default function IdealHand({ ideal, label }) {
             </div>
           ))}
         </div>
-      </button>
+        )}
+      </div>
 
       {open && (
         <div className="px-2.5 pb-2.5 space-y-2">
@@ -70,17 +68,12 @@ export default function IdealHand({ ideal, label }) {
               </div>
             ))}
           </div>
-          {needs.length > 0 && (
-            <p className="text-[11px] text-cream/75 leading-snug">
-              <span className="text-gold/90 font-semibold">Still need: </span>
-              {needs.map((n) => `${tileName(n.id)}${n.count > 1 ? ` ×${n.count}` : ''} (${n.live} left)`).join(', ')}
-            </p>
-          )}
-          {fans.length > 0 && (
+          {scoring.length > 0 && (
             <div className="flex flex-wrap gap-1">
-              {fans.map((f, i) => (
+              {scoring.map((f, i) => (
                 <span key={i} className="text-[10px] bg-jade-mid/70 text-cream/80 rounded px-1.5 py-0.5">
-                  {f}
+                  {f.name}
+                  {f.points != null && <span className="text-gold/90 font-semibold"> ({f.points}pt)</span>}
                 </span>
               ))}
             </div>
