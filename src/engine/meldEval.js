@@ -14,6 +14,10 @@ import { legalWinGoals } from './idealHand.js';
 const DRAGON_IDX = new Set([31, 32, 33]);
 const WIND_IDX = { east: 27, south: 28, west: 29, north: 30 };
 
+// How far the SHAPE is from complete (not whether it reaches 8 points; the plan
+// cards show that): "one tile from a complete hand" / "2 tiles from that".
+const away = (n) => (n <= 0 ? 'one tile from a complete hand' : `${n + 1} tiles from a complete hand`);
+
 function isValueTile(idx, seatWind, prevalentWind) {
   if (DRAGON_IDX.has(idx)) return { value: true, label: 'dragon pung (+2)' };
   if (idx === WIND_IDX[seatWind]) return { value: true, label: 'seat-wind pung (+2)' };
@@ -103,18 +107,16 @@ export function evaluateMeld(
       recommendation = 'claim';
       reason = `Take the ${tName} as a triplet — it scores a ${valInfo.label} and ${
         improves >= 1
-          ? `moves you to ${shantenIfClaim} useful tile${shantenIfClaim === 1 ? '' : 's'} from ready`
+          ? (shantenIfClaim <= 0 ? 'puts you one tile from a complete hand' : `brings you to ${away(shantenIfClaim)}`)
           : 'banks guaranteed points without slowing you down'
       }.`;
     } else if (improves >= 1 && decent) {
       recommendation = 'claim';
-      reason = `Take the ${tName} as a triplet — it brings you to ${shantenIfClaim} tile${
-        shantenIfClaim === 1 ? '' : 's'
-      } from ready and an 8-point-plus hand is still reachable.`;
+      reason = `Take the ${tName} as a triplet — it ${shantenIfClaim <= 0 ? 'puts you one tile from a complete hand' : `brings you to ${away(shantenIfClaim)}`} and an 8-point-plus hand is still reachable.`;
     } else if (improves >= 1 && !decent) {
-      reason = `Leave the ${tName}. Taking it gets you to ${shantenIfClaim} from ready, but it locks the hand under 8 points — you'd be unable to legally win.`;
+      reason = `Leave the ${tName}. Taking it gets you to ${away(shantenIfClaim)}, but it locks the hand under 8 points — you'd be unable to legally win.`;
     } else {
-      reason = `Leave the ${tName} — taking it as a triplet wouldn't get you any closer (still ${shantenIfClaim} from ready) and would give up your concealed-hand bonus.`;
+      reason = `Leave the ${tName} — taking it as a triplet wouldn't get you any closer (still ${away(shantenIfClaim)}) and would give up your concealed-hand bonus.`;
     }
 
     candidates.push({
@@ -183,13 +185,11 @@ export function evaluateMeld(
       reason = `You can only take a run from the player on your left, so ${tName} isn't claimable as a run right now.`;
     } else if (improves >= 1 && decent) {
       recommendation = 'claim';
-      reason = `Take the ${tName} into a run — it brings you to ${bestSh} tile${
-        bestSh === 1 ? '' : 's'
-      } from ready and an 8-point-plus hand is still reachable. Heads up: opening your hand drops the concealed bonus (−2 to −4 pts).`;
+      reason = `Take the ${tName} into a run — it ${bestSh <= 0 ? 'puts you one tile from a complete hand' : `brings you to ${away(bestSh)}`} and an 8-point-plus hand is still reachable. Heads up: opening your hand drops the concealed bonus (−2 to −4 pts).`;
     } else if (improves >= 1 && !decent) {
-      reason = `Leave the ${tName} — making the run gets you to ${bestSh} from ready, but no 8-point hand remains, and you'd surrender the concealed-hand bonus.`;
+      reason = `Leave the ${tName} — making the run gets you to ${away(bestSh)}, but no 8-point hand remains, and you'd surrender the concealed-hand bonus.`;
     } else {
-      reason = `Leave the ${tName} — taking it into a run wouldn't get you any closer (still ${bestSh} from ready) and would cost your concealed-hand bonus.`;
+      reason = `Leave the ${tName} — taking it into a run wouldn't get you any closer (still ${away(bestSh)}) and would cost your concealed-hand bonus.`;
     }
 
     candidates.push({

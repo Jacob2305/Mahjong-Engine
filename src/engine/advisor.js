@@ -94,6 +94,8 @@ export function advise(gameState) {
         tile: idToTile(evald.recommended.id),
         id: evald.recommended.id,
         reason: evald.reason,
+        short: evald.reasonShort,
+        details: evald.reasonDetails,
         shantenAfter: evald.recommended.shantenAfter,
         outsAfter: evald.recommended.outs,
         chance: evald.recommended.planValue,

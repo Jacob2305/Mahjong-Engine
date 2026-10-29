@@ -24,10 +24,15 @@ const stripPts = (r) => r.replace(/\s*\+\d+$/, '');
 
 // The headline = the single highest-scoring fan (the pattern that defines the
 // direction). The full combination is kept separately as `fans`.
+// Bonuses that depend on how/when you win, not on the hand's pattern; never used
+// as a plan's name (unless nothing else scores).
+const SITUATIONAL = /^(Concealed Hand|Fully Concealed Hand|Self-Drawn|Single Wait|Edge Wait|Closed Wait|Last Tile|Out with Replacement|Robbing the Kong|Flower)/;
+
 export function headlineOf(reasons) {
   let headline = reasons[0] ? stripPts(reasons[0]) : 'a legal hand';
   let hp = -1;
-  for (const r of reasons) {
+  const pattern = reasons.filter((r) => !SITUATIONAL.test(r));
+  for (const r of pattern.length ? pattern : reasons) {
     const mm = r.match(/\+(\d+)$/);
     const v = mm ? Number(mm[1]) : 0;
     if (v > hp) {

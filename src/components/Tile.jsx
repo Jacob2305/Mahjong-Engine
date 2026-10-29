@@ -3,6 +3,7 @@ import { tileImageUrl, tileShort, isSuited, isBonus } from '../engine/tiles.js';
 
 // Sizes in px (width). Height ~ 1.34x width to match mahjong tile ratio.
 const SIZES = {
+  xs: 19,
   sm: 30,
   md: 40,
   lg: 52,

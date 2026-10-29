@@ -70,8 +70,16 @@ needed tiles die, explanations that match the real decision, measured by `npm ru
       the last group). Tapping a tile inside a box no longer toggles the box.
 - [ ] 6. Speed check (< 1 s per decision), Web Worker if needed.
 - [ ] 7. Verify (tests, sim before/after, browser) and merge.
-- [ ] Next up (agreed): readable advice — three short lines (Why / Plan / Backup), plan names
-      from the real pattern (not Concealed Hand / Self-Drawn), chances labelled "rough".
+- [x] Readable advice panel (`AdvisorSheet.jsx`): one "Move played" card with the claim
+      decision (taken/skipped) and the tile thrown, each with ONE short line
+      (`recommendedDiscard.short`); "Show more" opens details (plan, backups, chances,
+      claim reasoning). Removed "How close you are", "Best discard now" and the separate
+      claim section (`MeldAdvice.jsx` deleted). Plan cards (`IdealHand.jsx`) are compact
+      (name, pts, rough chance, small tile strip; tap for sets, still-needed tiles, fans).
+      Plan names skip situational fans (`headlineOf` in `idealHand.js`). Claim wording now
+      says "N tiles from a complete hand" instead of "ready to win".
+- [ ] Claims still use the old logic (`meldEval.js`: shape distance + a goal check). Next:
+      decide claims with the planner (compare plan value if you claim vs skip).
 - [ ] Rerun old-vs-new sim (last attempt only ran the old engine): old = a worktree of
       `main` with the fixed `src/engine/mcr/` + `scripts/simulate.mjs` copied in.
 

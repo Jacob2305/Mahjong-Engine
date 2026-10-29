@@ -52,7 +52,9 @@ const ctx = { seatWind: 'south', prevalentWind: 'south' };
   const hand = ['man9', 'man2', 'man3', 'man4', 'sou5', 'sou6', 'sou7', 'pin1', 'pin2', 'pin3', 'pin5', 'pin5', 'wind_east', 'wind_east'];
   const a = advise({ handIds: hand, melds: [], discards: { man9: 3 }, context: { seatWind: 'east', prevalentWind: 'east' } });
   ok('throws the dead 9-Characters', a.recommendedDiscard.id === 'man9', a.recommendedDiscard.id);
-  ok('explanation states the plan and its chance', /Plan: .*about \d+% to come in/.test(a.recommendedDiscard.reason), a.recommendedDiscard.reason);
+  ok('explanation states the plan and its chance', /Plan: .*Rough chance .*\d+%/.test(a.recommendedDiscard.reason), a.recommendedDiscard.reason);
+  ok('short reason is one short line', a.recommendedDiscard.short.length < 90, a.recommendedDiscard.short);
+  ok('plan named after its pattern, not Concealed Hand', !/Concealed Hand/.test(a.idealHand.headline), a.idealHand.headline);
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

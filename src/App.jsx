@@ -244,7 +244,11 @@ export default function App() {
     let newDiscards = { ...discards };
     let newLast = lastDiscardId;
     const log = [];
-    const played = { thrownId: null, claimed: null };
+    // What happened this turn, for the "Move played" card: the claim decision on
+    // the last discard (taken or skipped) and the tile thrown, each with a short
+    // reason and details shown on demand.
+    const played = { thrownId: null, claimed: null, claim: null, discard: null };
+    const firstClause = (text) => text.split(/ — |\. /)[0].replace(/\.$/, '') + '.';
 
     const concealedCount = (h) => h.filter((x) => !isBonus(x)).length;
     const inDiscardMode = (h, m) => concealedCount(h) % 3 === 2; // holds 14 -> must discard
@@ -282,10 +286,17 @@ export default function App() {
             else newDiscards[newLast] = n;
           }
           log.push(`Claimed ${ma.meldType.toUpperCase()} on ${tileName(newLast)}.`);
+          played.claim = {
+            taken: true,
+            tile: newLast,
+            short: `Took ${tileName(newLast)} as a ${ma.meldType}.`,
+            details: [ma.reason],
+          };
           newLast = null;
         }
       } else if (ma && ma.recommendation === 'skip') {
         log.push(`Skipped claiming ${tileName(newLast)} — ${ma.reason}`);
+        played.claim = { taken: false, tile: newLast, short: firstClause(ma.reason), details: [ma.reason] };
       }
     }
 
@@ -304,6 +315,7 @@ export default function App() {
           newHand.splice(idx, 1);
           newDiscards = { ...newDiscards, [rd.id]: (newDiscards[rd.id] || 0) + 1 };
           played.thrownId = rd.id;
+          played.discard = { id: rd.id, short: rd.short || rd.reason, details: rd.details || [] };
           log.push(`Discarded ${tileName(rd.id)} — ${rd.reason}`);
         }
       }

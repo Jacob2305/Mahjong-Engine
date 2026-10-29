@@ -142,8 +142,15 @@ export function evaluateDiscards(counts, melds, pool, ctx = {}, opts = {}) {
   const top = options[0] || null;
   // A plan that would be closest but is impossible now (a tile it needs is all gone).
   const lost = evaluateHand(counts, targets, pool, drawsLeft).dead[0] || null;
-  const reason = top ? buildReason(top, options, lost) : '';
-  return { ranked: options, recommended: top, reason, drawsLeft };
+  const r = top ? buildReason(top, options, lost) : { short: '', details: [] };
+  return {
+    ranked: options,
+    recommended: top,
+    reasonShort: r.short,
+    reasonDetails: r.details,
+    reason: [r.short, ...r.details].join(' '), // full text, for older callers
+    drawsLeft,
+  };
 }
 
 // "3-Bamboo, East Wind ×2"
@@ -154,44 +161,46 @@ function needText(need) {
 }
 const pct = (x) => `${Math.max(1, Math.round(x * 100))}%`;
 
+// Returns { short, details: [lines] }: one line for why this tile, the rest on demand.
 function buildReason(opt, ranked, lost) {
-  const name = opt.name;
   const plan = opt.plans[0];
 
   if (!plan || opt.planValue < 0.005) {
-    // No 8-point hand in reach yet: say so, and explain the efficiency choice.
-    const parts = [];
-    if (opt.isolated) parts.push('it connects to nothing in your hand');
-    if (opt.tileLive <= 1) parts.push(opt.tileLive === 0 ? 'every other copy is already gone' : 'only 1 other copy is left');
-    if (!parts.length) parts.push('it is the least useful tile for your shape');
-    return `Throw ${name}: ${parts.join(', ')}. No 8-point hand is close yet, so this keeps the most ` +
-      `flexible shape (${opt.shantenAfter <= 0 ? 'ready' : `${opt.shantenAfter} tile${opt.shantenAfter === 1 ? '' : 's'} from ready`}, ` +
-      `${opt.outs} useful draws left).`;
+    const why = opt.isolated
+      ? 'It connects to nothing in your hand.'
+      : opt.tileLive === 0
+        ? 'Every other copy is already gone.'
+        : 'It is the least useful tile for your shape.';
+    return {
+      short: `${why} No 8-point hand is close yet.`,
+      details: [
+        `Keeping the most flexible shape: ${opt.shantenAfter <= 0 ? 'ready' : `${opt.shantenAfter} tile${opt.shantenAfter === 1 ? '' : 's'} from ready`}, ` +
+          `${opt.outs} useful draws left.`,
+        'Aim to line up a scoring pattern (a flush, a straight, shifted or mixed runs) before committing.',
+      ],
+    };
   }
 
-  const sentences = [];
+  const usedBy = opt.plans.filter((g) => !opt.keepsTarget(g));
+  const short = usedBy.length
+    ? `Least needed tile — keeps ${plan.headline} on track.`
+    : `Not part of your plan (${plan.headline}).`;
+
+  const details = [];
   if (lost && lost.missing < plan.missing && lost.headline !== plan.headline) {
-    sentences.push(`${lost.headline} is out: every ${tileName(lost.deadTile)} is gone.`);
+    details.push(`${lost.headline} is out: every ${tileName(lost.deadTile)} is gone, so the plan switched.`);
   }
-  sentences.push(
+  details.push(
     `Plan: ${plan.headline} (${plan.points} pts${plan.selfDrawOnly ? ', only if you draw the winning tile yourself' : ''}), ` +
-      `needs ${needText(plan.need)}, about ${pct(plan.chance)} to come in.`,
+      `needs ${needText(plan.need)}.`,
   );
-  const backups = opt.plans.slice(1, 3);
-  if (backups.length) {
-    sentences.push(
-      `Backup: ${backups.map((b) => `${b.headline} (needs ${b.need.length ? needText(b.need) : 'nothing more'})`).join('; ')}.`,
-    );
+  for (const b of opt.plans.slice(1, 3)) {
+    details.push(`Backup: ${b.headline} (${b.points} pts), needs ${b.need.length ? needText(b.need) : 'nothing more'}.`);
   }
-  // Why this tile and not another.
-  const usedBy = opt.plans.filter((g) => !opt.keepsTarget(g)).map((g) => g.headline);
-  let why;
-  if (!usedBy.length) why = `it isn't part of any of these plans`;
-  else {
-    const next = ranked.find((o) => o !== opt);
-    why = `it's the tile your plans need least` +
-      (next ? ` (throwing ${next.name} instead would drop your chances to ${pct(next.planValue)})` : '');
-  }
-  sentences.unshift(`Throw ${name}: ${why}. Chance one of your plans comes in: ${pct(opt.planValue)}.`);
-  return sentences.join(' ');
+  const next = ranked.find((o) => o !== opt);
+  details.push(
+    `Rough chance one of these comes in from your own draws: ${pct(opt.planValue)}` +
+      (next ? ` (throwing ${next.name} instead: ${pct(next.planValue)}).` : '.'),
+  );
+  return { short, details };
 }
