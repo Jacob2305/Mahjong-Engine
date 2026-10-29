@@ -14,37 +14,37 @@ npm run dev      # http://localhost:5173
 
 ## Build & deploy
 
-```bash
-npm run build
-```
+`dist/` is build output and isn't committed.
 
-Then drag the generated **`dist/`** folder onto
-[netlify.com/drop](https://app.netlify.com/drop) — no account needed — and you'll
-get a permanent shareable link in about 10 seconds.
+- **Netlify from GitHub (recommended):** connect the repo in Netlify. `netlify.toml`
+  runs `npm run build` and publishes `dist/`, so every push to `main` redeploys.
+- **Netlify Drop:** run `npm run build` and drag `dist/` onto
+  [app.netlify.com/drop](https://app.netlify.com/drop).
 
 ## Fill from a photo 📷
 
-Instead of tapping in fourteen tiles, open **📷 Fill from a photo** and shoot
-either your hand or the table — the picker offers your camera *and* your camera
-roll. Claude reads the tiles, then shows you what it found so you can drop
-anything it got wrong before it reaches the engine.
+Open **📷 Fill from a photo → Scan the table** and take (or pick) one photo of the
+table. A small tile-detection model runs **on your phone** (onnxruntime-web, model in
+`public/models/mahjong-tiles.onnx`): free, no API key, no server, works offline once
+loaded. The first scan downloads ~25 MB; the browser caches it after that.
 
-- **🀫 My hand** — one row of your tiles, faces toward the camera.
-- **🀄 The table** — the discards face-up in the middle. Repeats are counted.
+- **The longest row of touching tiles (5+) is your hand.** Line your tiles up in one row.
+- **Every other face-up tile is a discard**: scattered tiles and other players' short
+  rows of revealed sets (all seen tiles).
+- You review both groups before anything is added: tap a tile to **move** it to the
+  other group or **remove** it. Uncertain tiles are gold-ringed `check`; anything that
+  would be a 5th copy is struck through and never imported.
+- Your own claimed sets go in with **“+ add a claimed meld”** as before.
+- Best results: shoot from above, good light, tiles filling the frame. Angled photos of
+  discard piles are the hardest case.
 
-Notes:
+Code: `src/engine/detect.js` (pure: decode, class map, hand/discard split; tested by
+`detect.test.mjs`) and `src/engine/vision.js` (loads and runs the model).
 
-- This needs **your own Anthropic API key** (the one feature that isn't offline).
-  Paste it once; it's kept in `localStorage` under `mcr-advisor-api-key`, never
-  bundled, and sent only to `api.anthropic.com`. **Anyone with access to the
-  browser or devtools can read it** — use a key you're happy to rotate, and don't
-  ship a build with a key entered.
-- Recognition is good but not perfect. Uncertain tiles come back gold-ringed and
-  labelled `check`; anything that would be a 5th copy of a type is struck through
-  and never imported. The review step is mandatory by design — one misread tile
-  changes every discard recommendation.
-- Fill the frame with just the tiles and shoot square-on. Photos are downscaled to
-  1568px before upload.
+Model: YOLO11n trained in the sister project *Mahjong-Scoring-Calculator* on the
+[Mahjong dataset by Jon Chan](https://universe.roboflow.com/jon-chan-gnsoa/mahjong-baq4s)
+(Roboflow Universe, CC BY 4.0). To update it, copy a new `mahjong-tiles.onnx` into
+`public/models/`; if the class list changes, update `MODEL_CLASSES` in `detect.js`.
 
 ## How to use
 
@@ -71,6 +71,5 @@ Pure, side-effect-free functions in `src/engine/`:
 Sanity tests:
 
 ```bash
-node src/engine/engine.test.mjs
-node src/engine/scenarios.test.mjs
+for t in src/engine/*.test.mjs; do node "$t"; done
 ```

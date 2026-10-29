@@ -1,0 +1,13 @@
+# Netlify builds the site itself from GitHub, so dist/ stays out of git.
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "22"
+
+# The tile model rarely changes; let phones cache it for a week.
+[[headers]]
+  for = "/models/*"
+  [headers.values]
+    Cache-Control = "public, max-age=604800"

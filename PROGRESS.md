@@ -25,18 +25,16 @@ Branch: `on-device-scanner` (merge into `main` when done).
 - [x] 3. `src/engine/vision.js`: run the model in the browser instead of calling Claude
 - [x] 4. `PhotoImport.jsx` / `App.jsx`: no API key; one photo → review with "My hand" and
       "Discards" sections; commit both
-- [ ] 5. README + `netlify.toml`
+- [x] 5. README + `netlify.toml`
 - [ ] 6. Verify end to end (tests, build, phone-size browser test), merge to `main`
 
 ## Where to pick up
-Step 5: README (replace the Anthropic-key section with on-device notes + dataset credit)
-and add `netlify.toml` (copy from `../Mahjong-Scoring-Calculator/netlify.toml`).
-Then step 6: browser test of the photo flow on a phone-size screen, then merge.
+Step 6: end-to-end check. Build, serve with `npx vite preview`, open on a phone-size
+screen, scan a table photo (hand row + scattered discards), review, add, and confirm the
+hand and discard pool fill correctly. Then merge `on-device-scanner` into `main` and push.
 
-Step 4 done: `PhotoImport.jsx` has one "📷 Scan the table" button and a review with
-"My hand" and "Discards" sections (tap a tile → Move / Remove). `App.jsx` no longer has
-any API-key state and clears the old saved key; `importTiles({ hand, discards })` now
-takes both lists in one call (two separate calls would overwrite each other's state).
+Step 5 done: README rewritten for the on-device scanner (with dataset credit),
+`netlify.toml` added (same as the calculator's).
 
 ## How to run and check
 ```bash
