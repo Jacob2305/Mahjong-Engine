@@ -14,7 +14,7 @@ import { getShanten } from './shanten.js';
 import { getUsefulTiles, countLiveOuts } from './usefulTiles.js';
 import { liveOf } from './tilePool.js';
 import { bestScore, MIN_POINTS } from './scoring.js';
-import { findTargets, evaluateHand, planValue } from './planner.js';
+import { findTargets, evaluateHand, planValue, lookAhead } from './planner.js';
 
 // Does any tile complete this 13-tile hand for a legal (>= 8 pt) win?
 // Returns { hasLegal, bestPoints } where bestPoints is the max over completions.
@@ -125,6 +125,8 @@ export function evaluateDiscards(counts, melds, pool, ctx = {}, opts = {}) {
     after[o.index]--;
     const { goals } = evaluateHand(after, targets, pool, drawsLeft);
     const pv = planValue(goals);
+    o.goals = goals;
+    o.after = after;
     o.planValue = pv.value;
     o.plans = pv.plans;
     o.keepsTarget = (g) => g.target[o.index] <= after[o.index];
@@ -138,6 +140,15 @@ export function evaluateDiscards(counts, melds, pool, ctx = {}, opts = {}) {
       a.shantenAfter - b.shantenAfter ||
       b.outs - a.outs,
   );
+
+  // Look one draw ahead for the best few throws and re-rank them by how good
+  // your options are after the next tile (keeps flexible shapes, avoids dead ends).
+  const short = options.slice(0, 3).filter((o) => o.planValue > 0.005);
+  if (short.length > 1 && opts.lookAhead !== false) {
+    for (const o of short) o.future = lookAhead(o.after, o.goals, melds, pool, drawsLeft, ctx);
+    short.sort((a, b) => b.future - a.future || b.total - a.total);
+    options.splice(0, short.length, ...short);
+  }
 
   const top = options[0] || null;
   // A plan that would be closest but is impossible now (a tile it needs is all gone).
@@ -198,6 +209,12 @@ function buildReason(opt, ranked, lost) {
     details.push(`Backup: ${b.headline} (${b.points} pts), needs ${b.need.length ? needText(b.need) : 'nothing more'}.`);
   }
   const next = ranked.find((o) => o !== opt);
+  if (typeof opt.future === 'number' && next && typeof next.future === 'number' && pct(opt.future) !== pct(next.future)) {
+    details.push(
+      `Looking one draw ahead: after your next tile you'd be at about ${pct(opt.future)} on average ` +
+        `(throwing ${next.name}: ${pct(next.future)}).`,
+    );
+  }
   details.push(
     `Rough chance one of these comes in (draws and claims): ${pct(opt.planValue)}` +
       (next ? ` (throwing ${next.name} instead: ${pct(next.planValue)}).` : '.'),

@@ -17,6 +17,7 @@ import { TILE_IDS } from './tiles.js';
 import { bestScore, MIN_POINTS } from './scoring.js';
 import { liveOf } from './tilePool.js';
 import { headlineOf } from './idealHand.js';
+import { getShanten } from './shanten.js';
 
 const canChowAt = (i) => i < 27 && i % 9 <= 6;
 
@@ -342,4 +343,52 @@ export function planValue(goals, k = 3, maxRoutes = 10) {
     chosen.push(g);
   }
   return { value: 1 - none, plans, routes: chosen.length };
+}
+
+// Look one draw ahead. For a 13-tile hand (after a candidate throw), imagine each
+// tile you might draw next, weighted by how many copies are left, and your best
+// reply: declare the win if it's complete and 8+, otherwise the throw that keeps
+// the best routes. Returns the average plan value over those futures. This is what
+// rewards keeping flexible shapes: a throw that leaves good replies to many
+// different draws beats one that only works if one particular tile arrives.
+// goals13: evaluateHand(...).goals for this hand (their targets are reused).
+export function lookAhead(counts13, goals13, melds, pool, drawsLeft, ctx = {}) {
+  const targets = goals13.slice(0, 150);
+  if (!targets.length) return 0;
+  const later = Math.max(1, drawsLeft - 1);
+  const live = TILE_IDS.map((id) => liveOf(pool, id));
+  const unseen = Math.max(1, live.reduce((a, b) => a + b, 0));
+
+  // Draws that matter: tiles some route still needs.
+  const relevant = new Set();
+  for (const t of targets) for (const n of t.need) if (live[n.idx] > 0) relevant.add(n.idx);
+
+  let expected = 0;
+  let relevantWeight = 0;
+  for (const x of relevant) {
+    const w = live[x] / unseen;
+    relevantWeight += w;
+    const hand = counts13.slice();
+    hand[x]++;
+    const id = TILE_IDS[x];
+    const poolX = { ...pool, [id]: { ...pool[id], live: Math.max(0, live[x] - 1) } };
+
+    let best = 0;
+    if (getShanten(hand, melds.length).shanten === -1 &&
+        bestScore(hand, melds, { ...ctx, winType: 'selfdraw', winningTile: id }).points >= MIN_POINTS) {
+      best = 1; // you'd win right there
+    } else {
+      for (let d = 0; d < 34; d++) {
+        if (!hand[d]) continue;
+        hand[d]--;
+        const v = planValue(evaluateHand(hand, targets, poolX, later).goals).value;
+        hand[d]++;
+        if (v > best) best = v;
+      }
+    }
+    expected += w * best;
+  }
+  // Any other draw: throw it straight back, one draw fewer left.
+  const stay = planValue(evaluateHand(counts13, targets, pool, later).goals).value;
+  return expected + (1 - relevantWeight) * stay;
 }

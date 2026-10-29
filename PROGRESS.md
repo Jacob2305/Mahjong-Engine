@@ -110,6 +110,17 @@ More calculator scorer bugs found and fixed on its `fix-fan-table` branch (copie
 `src/engine/mcr/`): suited pung values were text, so Pung of Terminals and Triple Pung never
 scored; Mixed Straight / Mixed Shifted Chows could count twice.
 
+## Smarter look-ahead (2026-10-29, asked by user: plan further ahead)
+- [x] Routes counted by the tiles they need, not by name (`planValue`): many Chicken Hand
+      shapes = many routes = flexibility. Same tiles = same route; overlap adds less.
+- [x] Target search closest-first (1 tile away, then 2, …) with a 250 ms budget instead of
+      a 600-hand cap; the cap was dropping cheap 8-point routes.
+- [x] One-draw look-ahead (`lookAhead` in planner.js): for the top 3 throws, average over
+      every possible next tile (weighted by copies left) of the best reply; pick the best.
+      Explanation adds "Looking one draw ahead…" when it changes the picture.
+- Speed: `advise()` mid-game median ~0.5 s, worst ~0.8 s on the laptop (was up to 8.7 s).
+- [ ] Measure with `npm run sim4` (running).
+
 ## 4-player sim results (100 games, seed 2024, same deals)
 | | old (`main`) | new @ d0129ab (claims-aware planner) | new @ 3ff35cf (open-hand values, Chicken Hand) |
 |---|---|---|---|
