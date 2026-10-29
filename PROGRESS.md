@@ -23,22 +23,20 @@ Branch: `on-device-scanner` (merge into `main` when done).
 - [x] 2. `src/engine/detect.js`: decode model output, map class names to this app's ids,
       split hand row vs discards (+ `detect.test.mjs`)
 - [x] 3. `src/engine/vision.js`: run the model in the browser instead of calling Claude
-- [ ] 4. `PhotoImport.jsx` / `App.jsx`: no API key; one photo → review with "My hand" and
+- [x] 4. `PhotoImport.jsx` / `App.jsx`: no API key; one photo → review with "My hand" and
       "Discards" sections; commit both
 - [ ] 5. README + `netlify.toml`
 - [ ] 6. Verify end to end (tests, build, phone-size browser test), merge to `main`
 
 ## Where to pick up
-Start step 4: update `src/components/PhotoImport.jsx` (and `App.jsx`) for the new
-`recognizeTiles({ image, onStatus })`, which returns `{ hand, discards, notes }`.
-Remove the API-key UI and the `apiKey` / `onApiKeyChange` props and state. Replace the
-"My hand" / "The table" buttons with one "📷 Scan the table" button, and show the review
-in two sections ("My hand", "Discards"). Tap a tile to drop it; a small action moves a tile
-to the other section. Commit calls `onImport(ids, 'hand')` and `onImport(ids, 'discards')`.
-Call `preloadScanner()` when the panel opens.
+Step 5: README (replace the Anthropic-key section with on-device notes + dataset credit)
+and add `netlify.toml` (copy from `../Mahjong-Scoring-Calculator/netlify.toml`).
+Then step 6: browser test of the photo flow on a phone-size screen, then merge.
 
-Step 3 done: `vision.js` runs the model with onnxruntime-web (lazy-loaded), no Claude code
-left. `npm run build` works again.
+Step 4 done: `PhotoImport.jsx` has one "📷 Scan the table" button and a review with
+"My hand" and "Discards" sections (tap a tile → Move / Remove). `App.jsx` no longer has
+any API-key state and clears the old saved key; `importTiles({ hand, discards })` now
+takes both lists in one call (two separate calls would overwrite each other's state).
 
 ## How to run and check
 ```bash

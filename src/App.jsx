@@ -10,8 +10,14 @@ import { advise } from './engine/advisor.js';
 import { isBonus, TILE_INDEX, tileName } from './engine/tiles.js';
 
 const STORAGE_KEY = 'mcr-advisor-state-v1';
-// Kept out of the game-state blob so Reset can't wipe it.
-const API_KEY_STORAGE = 'mcr-advisor-api-key';
+
+// Photo scanning used to need an Anthropic key saved in the browser. It runs on the
+// device now, so remove any key left over from before.
+try {
+  localStorage.removeItem('mcr-advisor-api-key');
+} catch {
+  /* ignore */
+}
 
 function loadState() {
   try {
@@ -21,14 +27,6 @@ function loadState() {
     /* ignore */
   }
   return null;
-}
-
-function loadApiKey() {
-  try {
-    return localStorage.getItem(API_KEY_STORAGE) || '';
-  } catch {
-    return '';
-  }
 }
 
 const DEFAULT_CONTEXT = {
@@ -52,18 +50,8 @@ export default function App() {
   const [context, setContext] = useState({ ...DEFAULT_CONTEXT, ...(saved?.context || {}) });
   const [advice, setAdvice] = useState(null);
   const [showAdvisor, setShowAdvisor] = useState(false);
-  const [apiKey, setApiKey] = useState(loadApiKey);
   const discardRef = useRef(null);
 
-  const updateApiKey = (key) => {
-    setApiKey(key);
-    try {
-      if (key) localStorage.setItem(API_KEY_STORAGE, key);
-      else localStorage.removeItem(API_KEY_STORAGE);
-    } catch {
-      /* ignore */
-    }
-  };
 
   // persist
   const persist = useCallback((next) => {
@@ -191,7 +179,8 @@ export default function App() {
   // local copies rather than through `remaining`, because state updates don't
   // land until after this runs — so a batch containing five 5-circles has to be
   // caught here, not on the next render. Returns what actually landed.
-  const importTiles = (ids, target) => {
+  // groups: { hand: [ids], discards: [ids] } from one photo, applied together.
+  const importTiles = (groups) => {
     let nextHand = [...handIds];
     let nextDiscards = { ...discards };
     let added = 0;
@@ -205,7 +194,11 @@ export default function App() {
     const slotsUsed = () =>
       nextHand.filter((x) => !isBonus(x)).length + melds.length * 3;
 
-    for (const id of ids) {
+    const queue = [
+      ...(groups.hand || []).map((id) => [id, 'hand']),
+      ...(groups.discards || []).map((id) => [id, 'discards']),
+    ];
+    for (const [id, target] of queue) {
       // Bonus tiles are only ever modelled as yours, and there is one of each.
       if (isBonus(id)) {
         if (nextHand.includes(id)) skipped++;
@@ -397,8 +390,6 @@ export default function App() {
         <PhotoImport
           onImport={importTiles}
           remaining={remaining}
-          apiKey={apiKey}
-          onApiKeyChange={updateApiKey}
         />
 
         {/* Discards — tap the box to target it */}
