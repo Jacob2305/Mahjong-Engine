@@ -1,190 +1,196 @@
-# Progress: on-device tile scanner
+# PROGRESS — Mahjong Engine (MCR Hand Advisor)
 
-Keep this file up to date after every step. On another computer:
-`git pull`, open this folder in Claude Code, and say **"read PROGRESS.md and continue"**.
-
-## Goal
-Replace the Claude-API photo reader (needed a paid Anthropic key) with the free on-device
-YOLO tile model from the sister project `Mahjong-Scoring-Calculator`. One photo of the table
-fills both your hand and the discard pool.
-
-**Split rule (decided with the user):**
-- The **longest row** of touching tiles (5+ tiles) = **my hand**.
-- **Everything else** = **discards**: scattered tiles, and other players' short rows of
-  revealed sets (they are seen tiles too).
-- No row of 5+ → all tiles are discards.
-
-Branch: `on-device-scanner`, merged into `main` on 2026-10-29.
-
-## Steps
-- [x] 0. Branch + this file
-- [x] 1. Model + runtime: copy `mahjong-tiles.onnx` into `public/models/`, add
-      `onnxruntime-web`, remove `@anthropic-ai/sdk`, Vite `optimizeDeps.exclude`
-- [x] 2. `src/engine/detect.js`: decode model output, map class names to this app's ids,
-      split hand row vs discards (+ `detect.test.mjs`)
-- [x] 3. `src/engine/vision.js`: run the model in the browser instead of calling Claude
-- [x] 4. `PhotoImport.jsx` / `App.jsx`: no API key; one photo → review with "My hand" and
-      "Discards" sections; commit both
-- [x] 5. README + `netlify.toml`
-- [x] 6. Verify end to end (tests, build, phone-size browser test), merge to `main`
-
-## Where to pick up
-**The on-device scanner is done and merged into `main`.** Ideas for next steps:
-- Test with real photos of a table (hand row + discards) and note any misreads here.
-- If angled discard photos misread a lot, add such photos to the Roboflow dataset,
-  retrain in Colab (see the calculator's README), and copy the new `.onnx` into both
-  projects' `public/models/`.
-- Possibly: detect your own claimed sets in the photo instead of adding them by hand.
-
-## Changes after the scanner (2026-10-29)
-- Scan panel moved to the top of the page; the "📷 Scan the table" button shows straight
-  away (no show/hide toggle).
-- Review screen: drag a tile between "My hand" and "Discards" to fix the side; tap still
-  opens Move / Remove. Touch-tested in a phone-size browser.
-
-## Current work: smarter engine (branch `smarter-engine`)
-Plan: play for legal 8+ hands from the start, keep backup plans open so it can pivot when
-needed tiles die, explanations that match the real decision, measured by `npm run sim`.
-
-- [x] 1. Simulation harness: `scripts/simulate.mjs` (`npm run sim`, options `--games`,
-      `--turns`, `--seed`, `--strategy engine|random`). Judges wins with the full scorer.
-- [x] 2. Full MCR scorer: `src/engine/mcr/` (copied from the calculator) + `mcr/index.js`
-      adapter for tile ids. `scoring.js` `bestScore()` now uses it (same output shape,
-      cached). Scores as a win by discard, so Concealed Hand +2 is included.
-      While checking it, found and fixed fan-table bugs in the calculator (branch
-      `fix-fan-table` there, pushed, not merged yet): Two Concealed Pungs 4→2, Two Concealed
-      Kongs 2→8; added All Simples (2), Concealed Kong (2), Two Melded Kongs (4).
-      Still missing: Last Tile 和绝张 (needs a UI flag).
-- [x] 3. Goals respect the wall: `idealHand.js` rejects goals needing more copies than are
-      live; new `planner.js` finds targets once, then rates them per hand by the chance of
-      drawing what's missing (`evaluateHand`). Wins legal only by self-draw count, flagged.
-- [x] 4. Value-aware discards with backup plans: `discardEval.js` picks the discard that
-      maximises the chance at least one of the top 3 DIFFERENT plans comes in
-      (`planValue`); old tile efficiency is the tie-break and the fallback early on.
-- [x] 5. Explanations built from the decision: plan, backups, needed tiles with live
-      counts, chances, why this tile, and "X is out: every Y is gone" when switching.
-      `advise()` builds the plan cards from the same plans (`chance` added).
-- [x] Home screen (asked for mid-way): no box selected at start and the tile picker is
-      hidden; tap My Hand / Seen Discards to open it, tap the same box again to close.
-      Picker split into groups: Sticks 条 / Numbers 万 / Dots 筒 / Symbols 字 (remembers
-      the last group). Tapping a tile inside a box no longer toggles the box.
-- [ ] 6. Speed check (< 1 s per decision), Web Worker if needed.
-- [ ] 7. Verify (tests, sim before/after, browser) and merge.
-- [x] Readable advice panel (`AdvisorSheet.jsx`): one "Move played" card with the claim
-      decision (taken/skipped) and the tile thrown, each with ONE short line
-      (`recommendedDiscard.short`); "Show more" opens details (plan, backups, chances,
-      claim reasoning). Removed "How close you are", "Best discard now" and the separate
-      claim section (`MeldAdvice.jsx` deleted). Plan cards (`IdealHand.jsx`) are compact
-      (name, pts, rough chance, small tile strip; tap for sets, still-needed tiles, fans).
-      Plan names skip situational fans (`headlineOf` in `idealHand.js`). Claim wording now
-      says "N tiles from a complete hand" instead of "ready to win".
-- [x] Plan card details: opening a card hides the small strip and shows the big layout plus
-      each scoring pattern with its points ("Dragon Pung (2pt)"); "Still need" removed;
-      self-draw-only plans say so. Fixed nested <button>s (plan card header and meld chips
-      are now div role=button).
-- [x] Scan button renamed "📷 Scan hand/table" with one line under it; long directions
-      removed. "Make My Move" now closes the selected box (picker hidden).
-- [x] 1–2. Chance model counts claims (`planner.js` `evaluateHand`): per missing tile by set
-      type — pung's last tile from any of 3 opponents, chow's last tile from the left player,
-      pair tiles drawn; the final winning tile from anyone unless self-draw only. Targets
-      carry `finish`: 'open' (still 8+ after claiming, no Concealed Hand), 'concealed'
-      (only the winning tile may be claimed), 'selfdraw'. Chicken Hand never planned.
-      Plan cards say "keep it concealed (no claims)" / "only if you draw the last tile".
-- [x] 3. Claims decided by the planner (`claimEval.js` `planClaim`, used by `advise()`):
-      plan value if you skip vs. after each pung/chow + best discard; claims if it adds
-      >1 point of chance. Reason: "Take the Red as a pung — your chance of an 8+ hand goes
-      from 38% to 71% (plan: …), then throw …". `meldEval.js` no longer used by advise.
-- [x] Tile picker opens directly under the selected box (My Hand or Seen Discards).
-- [x] Plans valued as OPEN hands (asked by user: you usually claim, so don't count on
-      Concealed Hand): `findTargets` scores each target without Concealed Hand; if nothing
-      else scores it's a Chicken Hand (8). 'concealed'/'selfdraw' plans only count when one
-      tile away. Chicken Hand allowed with its limits: hand must be open, win off a
-      discard only (self-draw adds a point), and the wait must score nothing (exact check
-      one tile away; ×0.5 chance further out). Tests in `planner.test.mjs` (16 passing).
-- [x] 4. 4-player simulator: `scripts/simulate4.mjs` (`npm run sim4`). Results: see below.
-- [ ] Rerun old-vs-new sim (last attempt only ran the old engine): old = a worktree of
-      `main` with the fixed `src/engine/mcr/` + `scripts/simulate.mjs` copied in.
-
-Fixed (step 3): the dead-Red-Dragon plan bug; regression tests in `planner.test.mjs`.
-More calculator scorer bugs found and fixed on its `fix-fan-table` branch (copied into
-`src/engine/mcr/`): suited pung values were text, so Pung of Terminals and Triple Pung never
-scored; Mixed Straight / Mixed Shifted Chows could count twice.
-
-## Smarter look-ahead (2026-10-29, asked by user: plan further ahead)
-- [x] Routes counted by the tiles they need, not by name (`planValue`): many Chicken Hand
-      shapes = many routes = flexibility. Same tiles = same route; overlap adds less.
-- [x] Target search closest-first (1 tile away, then 2, …) with a 250 ms budget instead of
-      a 600-hand cap; the cap was dropping cheap 8-point routes.
-- [x] One-draw look-ahead (`lookAhead` in planner.js): for the top 3 throws, average over
-      every possible next tile (weighted by copies left) of the best reply; pick the best.
-      Explanation adds "Looking one draw ahead…" when it changes the picture.
-- Speed: `advise()` mid-game median ~0.5 s, worst ~0.8 s on the laptop (was up to 8.7 s).
-- [ ] Measure with `npm run sim4` (running).
-
-## 4-player sim results (100 games, seed 2024, same deals)
-| | old (`main`) | new @ d0129ab (claims-aware planner) | new @ 3ff35cf (open-hand values, Chicken Hand) |
-|---|---|---|---|
-| advisor wins | 19% | 38% | **49%** |
-| advisor's discard let an opponent win | 16% | 11% | 12% |
-| opponent won otherwise | 47% | 37% | 30% |
-| draw | 18% | 14% | 9% |
-| avg decision / slowest | 154 ms / 2.6 s | 502 ms / 8.0 s | 529 ms / **8.7 s** |
-To do: the 8 s worst case is too slow (likely `findTargets` at maxMissing 6 or several
-claim options); cap search time and/or move `advise()` into a Web Worker.
-
-## Engine review (2026-10-29)
-How the advisor picks a discard (`discardEval.js`): for each tile, the resulting shanten
-(tiles from ready) dominates, then live outs, a bonus for isolated/dead tiles, and only at
-one-away does it check the 8-point minimum. Goal hands (`idealHand.js`) are computed but
-only used in the explanation text, not in choosing the discard.
-
-Measured:
-- Speed: `advise()` median ~45 ms, worst ~280 ms on a laptop (fine; phones maybe 3-5x).
-- Solo simulation, 150 games × 18 draws, no claims, no wins off discards, judged by the
-  calculator's full scorer: random discards 0% wins / 0% complete; engine **9% legal 8+
-  wins, 17% complete shapes, 61% one-away at the end**. About half its completed hands
-  were under 8 points, so they can't be declared.
-- Its scorer (`scoring.js`) is a simplified subset. On 300 random concealed hands vs the
-  calculator's full 81-fan scorer: same 8-point verdict 79% (92% if the Concealed Hand +2
-  bonus, which it leaves out on purpose, is ignored); exact same points only 15-19%.
-- No defence: it doesn't consider whether a discard could hand an opponent the win.
-
-Suggested next steps (not started):
-1. Use the calculator's full scorer (`../Mahjong-Scoring-Calculator/src/engine/scorer.js`
-   + `fanRules.js`, `exclusions.js`, `decompose.js`, `tiles.js`; ids differ: `m1` vs `man1`).
-2. Make discard choice value-aware: rank discards by progress toward legal 8+ goals,
-   not raw shanten.
-3. Keep a simulation script in the repo to measure each change (the numbers above).
-4. Later: defence (danger rating of each discard from what opponents threw/claimed).
-
-## Results (2026-10-29)
-- Engine tests: detect 15, engine 6, scenarios 5, value 2 passing (plus autoplay/scoring).
-- Phone-size Chrome test with a rendered table photo (13-tile hand row, 5 scattered
-  discards, another player's set of three 2-dots): all 21 tiles read in ~2.7 s, hand and
-  discards split correctly, both saved into the app in one tap.
-- Known: the test artwork draws the white dragon as a fully blank tile and the model
-  missed those; real white dragons (blue frame) were in the training data.
-
-## How to run and check
+**Picking up on another computer:**
 ```bash
+git fetch && git checkout smarter-engine && git pull   # current work lives on this branch
 npm install
-npm run dev                                   # http://localhost:5173
-for t in src/engine/*.test.mjs; do node "$t"; done   # engine tests
-npm run build
+npm run dev            # http://localhost:5173
+npm test               # all engine tests
 ```
+Then open this folder in Claude Code and say **"read PROGRESS.md and continue"**.
+Keep this file updated (and pushed) after every step.
 
-## Reference (sister project, same parent folder)
-- Model: `../Mahjong-Scoring-Calculator/public/models/mahjong-tiles.onnx` (YOLO11n, 640×640,
-  42 classes, trained on the Roboflow dataset by Jon Chan, CC BY 4.0,
-  https://universe.roboflow.com/jon-chan-gnsoa/mahjong-baq4s).
-- Working browser code to port: `../Mahjong-Scoring-Calculator/src/scan/detect.js` (pure
-  decode/NMS) and `src/scan/localScan.js` (onnxruntime-web loading).
+---
+
+## 1. Where things stand (2026-10-29)
+
+| Repo / branch | State |
+|---|---|
+| **Mahjong-Engine `smarter-engine`** | All current work. Pushed. **Not merged into `main` yet.** Tests pass. |
+| Mahjong-Engine `main` | On-device photo scanner + review-drag + scan at top (older engine). |
+| **Calculator (`../Mahjong-Scoring-Calculator`) `fix-fan-table`** | Real MCR scoring fixes (see §5). Pushed. **Not merged yet** — worth merging, it changes real scores. The engine already uses these fixed files (`src/engine/mcr/`). |
+| Calculator `main` | Live app (on-device scanner, home-screen brackets, suit bar, false-win penalties). |
+
+**Next decision for the user:** merge `smarter-engine` → `main` here, and `fix-fan-table` →
+`main` in the calculator (run both test suites first).
+
+**Latest measurement still to record:** the 4-player sim for the look-ahead version (commit
+`2ca47aa`) was started but its result wasn't captured before switching laptops. Re-run:
+`npm run sim4` (~15–20 min, 100 games) and add the row to the table in §4. Previous best: 49%.
+
+---
+
+## 2. User preferences (keep these)
+- **Everything free**: no paid APIs/keys. The Claude/Gemini photo readers were replaced by
+  the on-device model.
+- UI: short and clean. One-line reasons with "Show more"; hide tile pickers until a box is
+  tapped; picker opens right under the box; plan cards compact, tap for details.
+- MCR strategy views (encoded in the planner): you usually win off others' discards, so
+  **don't count on Concealed Hand / fully concealed**; **Chicken Hand is fine** if nothing
+  else will score (open hand, win off a discard, no-point wait).
+- House rule: false win = pay **10 each** if under 8 fan, **20 each** if not a winning hand
+  (calculator).
+- Workflow: plan first for big changes, work on a branch, push often, update this file.
+
+---
+
+## 3. How the app works
+
+### Photo scan (on-device AI)
+- `public/models/mahjong-tiles.onnx` — YOLO11n tile detector (42 classes, 640×640), trained
+  in Google Colab on the Roboflow dataset by Jon Chan (CC BY 4.0,
+  https://universe.roboflow.com/jon-chan-gnsoa/mahjong-baq4s). **This is the only trained AI
+  in the project**; its learned knowledge is the weights in that file.
+- `src/engine/vision.js` loads it with onnxruntime-web (lazy, ~25 MB first time) and runs it.
+- `src/engine/detect.js` (pure, tested): decode boxes, class names → ids (`1B→sou1`,
+  `1C→man1`, `1D→pin1`, `EW→wind_east`, `RD→dragon_red`, `nF→flower n`, `nS→season n`),
+  split one photo: **longest touching row (5+) = my hand, everything else = discards**.
+- `src/components/PhotoImport.jsx`: "📷 Scan hand/table" → review (drag between My hand /
+  Discards, tap to move/remove) → add both.
+
+### Advice engine (rules + search + probability — NOT machine learning)
+It recomputes from scratch on every "Make My Move"; nothing is learned or stored between
+games. It's only as good as its rules and assumptions; it improves when the code changes.
+- `src/engine/mcr/` — full MCR scorer (81 fans) copied from the calculator; `mcr/index.js`
+  converts tile ids. `scoring.js` `bestScore()` wraps it (cached).
+- `src/engine/planner.js`:
+  - `findTargets()`: one search for complete hands worth 8+ near your tiles, closest first
+    (1 tile away, then 2, …), 250 ms budget. Each target is valued **as an open hand**
+    (no Concealed Hand); nothing else scoring = Chicken Hand (8). `finish`: 'open',
+    'concealed' (needs the bonus), 'selfdraw' (needs a self-drawn last tile) — the latter two
+    only count when one tile away.
+  - `evaluateHand()`: per hand, drop targets needing a tile with 0 live copies; chance of
+    getting the rest: one draw per turn, plus claims — pung's last tile from any of 3
+    opponents, chow's last tile only from the left player, pair tiles drawn; winning tile
+    from anyone unless self-draw only. Constants: `OPPONENTS = 3`, `DISCARD_RATE = 0.5`.
+    Chicken Hand: open only, off a discard, wait must score nothing (exact check one away,
+    ×0.5 further out).
+  - `planValue()`: chance at least one route comes in; routes counted by the **tiles they
+    need** (many Chicken Hand shapes = many routes); overlapping routes add less.
+  - `lookAhead()`: for a candidate throw, average over every possible next tile (weighted
+    by copies left) of your best reply (win if legal, else best throw).
+- `src/engine/discardEval.js`: rates every throw by `planValue`, re-ranks the top 3 with
+  `lookAhead`; old tile-efficiency score breaks ties / covers early game. Builds the reason:
+  `short` (one line) + `details` (plan, backups, chances, look-ahead).
+- `src/engine/claimEval.js` `planClaim()`: claim a pung/chow only if plan value after the
+  claim + best throw beats skipping by >1 point.
+- `src/engine/advisor.js` `advise()`: wires it together; plan cards come from the same plans.
+- Old modules still present: `idealHand.js` (`assemble`, `headlineOf` used),
+  `meldEval.js` (no longer used by advise), `targetHands.js` (legacy list).
+
+### UI
+`App.jsx` (state, Make My Move), `HandDisplay`, `DiscardPool`, `TilePicker` (groups
+Sticks/Numbers/Dots/Symbols; tap → selected box, hold → other box), `AdvisorSheet`
+("Move played" card + "Hands I'm building"), `IdealHand` (compact plan card).
+
+### Simulators (a scoreboard, not training)
+- `npm run sim` — solo: one player drawing alone (older, mainly for quick checks).
+- `npm run sim4` — **4-player**: advisor (seat 0) vs 3 simple opponents (no claims, keep
+  closest to complete, win when legal incl. off the advisor's discards); advisor claims via
+  `advise()`. Same random deals each run (`--seed`), so versions compare fairly.
+
+---
+
+## 4. Results — 4-player sim (100 games, seed 2024)
+| | old (`main`) | claims-aware planner (`d0129ab`) | open-hand values + Chicken (`3ff35cf`) | look-ahead (`2ca47aa`) |
+|---|---|---|---|---|
+| advisor wins | 19% | 38% | **49%** | *re-run `npm run sim4`* |
+| advisor's discard let an opponent win | 16% | 11% | 12% | |
+| opponent won otherwise | 47% | 37% | 30% | |
+| draw | 18% | 14% | 9% | |
+| avg / slowest decision | 0.15 s / 2.6 s | 0.5 s / 8.0 s | 0.53 s / 8.7 s | ~0.5 s / ~0.8 s (bench) |
+
+Opponents are simple bots that never claim, so real games are harder; the comparison
+between versions is what matters.
+
+---
+
+## 5. Done (history, condensed)
+- **On-device scanner** replaced the paid Claude reader (merged to `main`).
+- **Engine rewrite** (`smarter-engine`): full MCR scorer; planner with live-tile awareness
+  (fixed: plans asking for dead tiles); claims-aware chances; open-hand valuation; Chicken
+  Hand rules; planner-based claims; tile-based route counting; closest-first search with
+  time budget (worst case 8.7 s → ~0.8 s); one-draw look-ahead.
+- **Calculator scorer bugs found & fixed** (`fix-fan-table`, copied into `src/engine/mcr/`):
+  Two Concealed Pungs 4→2; Two Concealed Kongs 2→8; added All Simples (2), Concealed Kong
+  (2), Two Melded Kongs (4); suited pung values were text so Pung of Terminals / Triple Pung
+  never scored; Mixed Straight / Mixed Shifted Chows could count twice. Still missing: Last
+  Tile 和绝张 (needs a UI flag).
+- **UI**: picker hidden until a box is tapped, opens under it, closes after a move; tile
+  groups; "📷 Scan hand/table" at top; Move played card with one-line reasons + Show more;
+  compact plan cards (points per pattern, "keep it concealed" / "only if you draw the last
+  tile" hints); no nested buttons.
+
+---
+
+## 6. Next up
+
+### A. Live video / camera mode (ambitious — discussed, NOT started)
+Idea: point the phone at the table and let the app watch, instead of taking photos.
+- **How:** browser camera (`getUserMedia`) → run the same tile model on frames ~1–3×/s
+  (try onnxruntime-web's WebGPU provider for speed) → keep a **table state** and accept a
+  change only when it's stable for ~1 s (ignore hands/blur): new tile in my row = draw;
+  tile gone from row + new one in the middle = my discard; new tile in the middle otherwise
+  = opponent discard → instant claim/skip/win advice.
+- **Hard parts:**
+  - Camera placement: own tiles stand facing the player, so a flat phone can't read them;
+    likely a stand/gooseneck behind or beside the player, angled over the hand toward the
+    middle.
+  - Model retraining for that angle: steep views, upright tiles, rotated discards, motion
+    blur, fingers. Record video at the real setup → extract frames → label in Roboflow
+    (add to the existing project, same class names) → retrain in Colab → replace the .onnx.
+  - Who discarded what (position in the middle, turn order, or one-tap confirm).
+  - Opponents' melds are at the far edges, small/upside down: log what's clear, tap to add
+    the rest (they mostly matter as used-up tiles).
+  - Phone heat/battery: scan a few times a second, not 30.
+- **Stages:** (1) live viewfinder + "Read now" button reusing the photo pipeline (small);
+  (2) auto-watch my row and the middle with one-tap confirm (the real project, mostly a
+  training-data problem); (3) full table tracking (turn order, who threw what, opponents'
+  melds when visible, auto claim/win prompts); throughout: collect frames from real games
+  and retrain.
+- **Open questions for the user (ask first):**
+  1. Where would the phone sit during play (stand behind, propped at the seat, other)?
+  2. Physical tiles at a table, or an app/website? (If an app, screen capture is far
+     easier than a camera.)
+
+### B. Engine
+1. Record the look-ahead sim result (§4).
+2. **Win on a discard isn't advised**: Make My Move only claims sets/discards. If the last
+   discard completes a legal 8+ hand, show "Declare the win 🀄" with points. Same for a
+   self-drawn complete hand.
+3. Kong claims in `planClaim` (currently pung/chow only).
+4. Speed on phones: move `advise()` into a Web Worker, show "Thinking…".
+5. Defence: danger rating per discard, weighed against plan value.
+6. Auto-tune constants (`DISCARD_RATE`, Chicken ×0.5, claim margin, route overlap 0.8, plan
+   weights) by running `sim4` over combinations and keeping the best — first step toward
+   the engine "learning". Bigger later: self-play neural network built on `sim4`.
+
+### C. Housekeeping
+- Merge `smarter-engine` → `main`; calculator `fix-fan-table` → `main`.
+- Add Last Tile 和绝张 to the calculator (needs a UI flag), copy scorer files into
+  `src/engine/mcr/`.
+- Old modules (`meldEval.js`, `targetHands.js`) could be removed once nothing needs them.
+
+---
+
+## Reference
 - Model class order: `1B 1C 1D 1F 1S 2B … 9D EW GD NW RD SW WD WW`
   (B bamboo, C characters, D dots, F flower, S season).
-
-## Decisions and notes
-- Confidence: model score ≥ 0.75 → `high`, else `low` (shown with the gold "check" ring).
-- Discard photos are often angled with rotated tiles; the model is weaker there than on
-  bird's-eye hands. The review step catches mistakes. More discard-pile training photos
-  would help later.
-- Code is copied from the calculator rather than shared (separate repos).
+- Retraining recipe (Colab, free T4 GPU): `pip install ultralytics roboflow` → Roboflow
+  download snippet (YOLOv11 format; keep the API key private) →
+  `YOLO('yolo11n.pt').train(data=..., epochs=60, imgsz=640, batch=32, fliplr=0.0, patience=15)`
+  (**fliplr=0**: mirrored characters aren't real tiles) → `best.export(format='onnx', imgsz=640, simplify=True)`
+  → copy `best.onnx` to `public/models/mahjong-tiles.onnx` in both projects. If classes change,
+  update `MODEL_CLASSES` in `detect.js` (both projects).
+- Confidence: score ≥ 0.75 → `high`, else `low` (gold "check" ring).
+- Code is copied between the two repos (calculator ↔ engine), not shared.
