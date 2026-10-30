@@ -162,3 +162,20 @@ export function splitTable(dets) {
     .sort((a, b) => (a.y1 + a.y2) - (b.y1 + b.y2) || a.x1 - b.x1);
   return { hand: handRow.map(toTile), discards: discards.map(toTile) };
 }
+
+// Live camera: mark which detections count (score >= MIN_SCORE, used by Read now)
+// and which of those form the hand row. Returns new objects with
+// { counted, inHand } added; `split` is splitTable() of the counted ones.
+export function markTiles(dets) {
+  const counted = dets.filter((d) => d.score >= MIN_SCORE);
+  const split = splitTable(counted);
+  const inHand = new Set(split.hand.map((t) => t.box.join(',')));
+  return {
+    dets: dets.map((d) => ({
+      ...d,
+      counted: d.score >= MIN_SCORE,
+      inHand: inHand.has([d.x1, d.y1, d.x2, d.y2].join(',')),
+    })),
+    split,
+  };
+}

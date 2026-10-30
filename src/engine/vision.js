@@ -12,7 +12,7 @@
 // is committed, because a misread tile would silently poison the advice.
 // ---------------------------------------------------------------------------
 
-import { INPUT_SIZE, MIN_SCORE, letterbox, toTensorData, decode, nms, halfCrops, splitTable } from './detect.js';
+import { INPUT_SIZE, letterbox, toTensorData, decode, nms, halfCrops, splitTable } from './detect.js';
 
 // Phone photos are 3000-4000px; the model sees 640px, so downscale early.
 const MAX_EDGE = 1568;
@@ -68,10 +68,16 @@ export async function prepareImage(file) {
   return encodeSource(img, img.width, img.height);
 }
 
-// The current frame of a playing <video> (live camera). Same shape as prepareImage().
-export function prepareFrame(video) {
+// The current frame of a playing <video> (live camera), or just `region` of it
+// ({ sx, sy, sw, sh } in video pixels). Same shape as prepareImage().
+export function prepareFrame(video, region = null) {
   if (!video || !video.videoWidth) throw new Error('The camera is not ready yet — try again in a moment.');
-  return encodeSource(video, video.videoWidth, video.videoHeight);
+  if (!region) return encodeSource(video, video.videoWidth, video.videoHeight);
+  const c = document.createElement('canvas');
+  c.width = region.sw;
+  c.height = region.sh;
+  c.getContext('2d').drawImage(video, region.sx, region.sy, region.sw, region.sh, 0, 0, region.sw, region.sh);
+  return encodeSource(c, region.sw, region.sh);
 }
 
 // --- recognition ------------------------------------------------------------
@@ -131,28 +137,46 @@ async function runModel(source, w, h, minScore, crop = { sx: 0, sy: 0, sw: w, sh
   }));
 }
 
-// Live camera: detect tiles in the current video frame, looking at it in two
-// overlapping halves (more pixels per tile), and keep weak guesses (score >=
-// WEAK_SCORE) so the overlay can show near-misses. Each detection:
-// { id, score, x1, y1, x2, y2, counted, inHand } in video pixels. `counted` =
-// strong enough to be read; `inHand` = part of the hand row.
+// Live camera: raw detections in the current video frame, looking at `region`
+// (the zoomed-in part, default the whole frame) in two overlapping halves for
+// more pixels per tile. Keeps weak guesses (score >= WEAK_SCORE) so the overlay
+// can show near-misses. Boxes are in video pixels: [{ id, score, x1, y1, x2, y2 }].
 export const WEAK_SCORE = 0.15;
-export async function detectFrame(video) {
-  if (!video || !video.videoWidth) return { dets: [], width: 0, height: 0 };
+export async function detectFrame(video, region = null) {
+  if (!video || !video.videoWidth) return [];
   const w = video.videoWidth;
   const h = video.videoHeight;
+  const r = region || { sx: 0, sy: 0, sw: w, sh: h };
   const parts = [];
-  for (const crop of halfCrops(w, h)) parts.push(...(await runModel(video, w, h, WEAK_SCORE, crop)));
-  const all = nms(parts);
-  const counted = all.filter((d) => d.score >= MIN_SCORE);
-  const { hand } = splitTable(counted);
-  const handBoxes = new Set(hand.map((t) => t.box.join(',')));
-  const dets = all.map((d) => ({
-    ...d,
-    counted: d.score >= MIN_SCORE,
-    inHand: handBoxes.has([d.x1, d.y1, d.x2, d.y2].join(',')),
-  }));
-  return { dets, width: w, height: h };
+  for (const c of halfCrops(r.sw, r.sh)) {
+    const crop = { sx: r.sx + c.sx, sy: r.sy + c.sy, sw: c.sw, sh: c.sh };
+    parts.push(...(await runModel(video, w, h, WEAK_SCORE, crop)));
+  }
+  return nms(parts);
+}
+
+// The visible part of the video at digital zoom `zoom` (centred crop).
+export function zoomRegion(video, zoom) {
+  const w = video.videoWidth;
+  const h = video.videoHeight;
+  const sw = Math.round(w / zoom);
+  const sh = Math.round(h / zoom);
+  return { sx: Math.round((w - sw) / 2), sy: Math.round((h - sh) / 2), sw, sh };
+}
+
+// Save frame: the region at full camera resolution as a JPEG Blob (for sending
+// test frames / building a training set).
+export function frameBlob(video, region = null) {
+  const w = video.videoWidth;
+  const h = video.videoHeight;
+  const r = region || { sx: 0, sy: 0, sw: w, sh: h };
+  const canvas = document.createElement('canvas');
+  canvas.width = r.sw;
+  canvas.height = r.sh;
+  canvas.getContext('2d').drawImage(video, r.sx, r.sy, r.sw, r.sh, 0, 0, r.sw, r.sh);
+  return new Promise((resolve, reject) =>
+    canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('Could not save the frame.'))), 'image/jpeg', 0.92),
+  );
 }
 
 // image: the result of prepareImage().

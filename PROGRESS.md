@@ -190,6 +190,22 @@ more, are compressed harder, maybe lower resolution, and 16:9 frames shrink tile
    read as 3-Circles (0.45). Photo path (Read now / Scan) still uses the whole image.
 Next if still weak: vote across frames; then retrain with frames from real-angle video.
 
+**User test after that (2026-10-30):** camera 2160×3840, ~500 ms per frame. Tiles are now
+found, but labels mostly gold/red → reading the faces at this angle is the model's weak spot
+(needs training on these angles). Added:
+- **Zoom** (pinch, slider, 1×/2×/3×): camera's own zoom where `getCapabilities().zoom`
+  exists (Android Chrome), else digital crop of the 4K frame (up to 4×, `zoomRegion()`).
+  The model only sees what's on screen.
+- **Frame voting** (`src/engine/tracker.js`, tested): boxes matched across frames by overlap,
+  guesses added up with older frames fading (×0.75/frame); label = most votes, score = its
+  average. Reset on zoom change.
+- **Read now** with boxes on = adds exactly what the boxes show (voted, green + gold) → review.
+  Boxes off = photo (Android, 1× only) or the current view, scanned as before.
+- **Save frame**: downloads the visible area at full resolution as JPEG — for sending test
+  frames and building the retraining set.
+Next: user sends saved frames → test offline (venv in scratchpad has onnxruntime) → start
+the Roboflow retraining set (pre-label with the current model, fix by hand).
+
 **First real photo (user's table, steep angle, 2026-10-30):** ran the model on it offline.
 Hand row: all 14 tiles found, ~13 read right (one upside-down character tile read as 3萬,
 flagged gold). Missed: an angled discard at the far left (not found at all), the flower

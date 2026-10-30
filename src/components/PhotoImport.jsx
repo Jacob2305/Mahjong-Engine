@@ -80,10 +80,17 @@ export default function PhotoImport({ onImport, remaining }) {
     setCamera(true);
   };
 
-  // The camera hands over its photo (or video frame); scan it like a photo.
-  const onCameraCapture = (image) => {
+  // The camera hands over either what its live boxes showed (`result`, already
+  // read) or a photo / video frame to scan like a photo. Both go to review.
+  const onCameraCapture = ({ image, result }) => {
     setCamera(false);
-    scan(() => image);
+    if (!result) {
+      scan(() => image);
+      return;
+    }
+    reset();
+    setPreview(image.previewUrl);
+    setResult(result);
   };
 
   // Move one tile to the end of the other section.
