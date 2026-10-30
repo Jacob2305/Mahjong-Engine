@@ -12,7 +12,7 @@
 // is committed, because a misread tile would silently poison the advice.
 // ---------------------------------------------------------------------------
 
-import { INPUT_SIZE, letterbox, toTensorData, decode, splitTable } from './detect.js';
+import { INPUT_SIZE, MIN_SCORE, letterbox, toTensorData, decode, splitTable } from './detect.js';
 
 // Phone photos are 3000-4000px; the model sees 640px, so downscale early.
 const MAX_EDGE = 1568;
@@ -108,14 +108,53 @@ function loadDataUrl(url) {
   });
 }
 
+// Run the model on any drawable source (Image, playing <video>) of size w×h.
+// Returns decoded detections with boxes in the source's pixels.
+async function runModel(source, w, h, minScore) {
+  const session = await loadSession();
+  const box = letterbox(w, h);
+  const canvas = (runModel.canvas ||= document.createElement('canvas'));
+  canvas.width = canvas.height = INPUT_SIZE;
+  const g = canvas.getContext('2d', { willReadFrequently: true });
+  g.fillStyle = 'rgb(114,114,114)'; // YOLO's usual padding colour
+  g.fillRect(0, 0, INPUT_SIZE, INPUT_SIZE);
+  g.drawImage(source, box.padX, box.padY, box.w, box.h);
+  const { data } = g.getImageData(0, 0, INPUT_SIZE, INPUT_SIZE);
+
+  const input = new ort.Tensor('float32', toTensorData(data), [1, 3, INPUT_SIZE, INPUT_SIZE]);
+  const outputs = await session.run({ [session.inputNames[0]]: input });
+  const out = outputs[session.outputNames[0]];
+  return decode(out.data, out.dims, box, minScore);
+}
+
+// Live camera: detect tiles in the current video frame, including weak guesses
+// (score >= WEAK_SCORE) so the overlay can show near-misses. Each detection:
+// { id, score, x1, y1, x2, y2, counted, inHand } in video pixels. `counted` =
+// strong enough to be used by Read now; `inHand` = part of the hand row.
+export const WEAK_SCORE = 0.15;
+export async function detectFrame(video) {
+  if (!video || !video.videoWidth) return { dets: [], width: 0, height: 0 };
+  const w = video.videoWidth;
+  const h = video.videoHeight;
+  const all = await runModel(video, w, h, WEAK_SCORE);
+  const counted = all.filter((d) => d.score >= MIN_SCORE);
+  const { hand } = splitTable(counted);
+  const handBoxes = new Set(hand.map((t) => t.box.join(',')));
+  const dets = all.map((d) => ({
+    ...d,
+    counted: d.score >= MIN_SCORE,
+    inHand: handBoxes.has([d.x1, d.y1, d.x2, d.y2].join(',')),
+  }));
+  return { dets, width: w, height: h };
+}
+
 // image: the result of prepareImage().
 // onStatus(text|null): progress for the UI (first-time model download).
 // Returns { hand: [{ id, confidence }], discards: [{ id, confidence }], notes }.
 export async function recognizeTiles({ image, onStatus = () => {} }) {
   if (!sessionPromise) onStatus('Loading the scanner (first time only)…');
-  let session;
   try {
-    session = await loadSession();
+    await loadSession();
   } catch {
     throw new Error('The scanner could not load. Check your connection and try again.');
   } finally {
@@ -123,19 +162,7 @@ export async function recognizeTiles({ image, onStatus = () => {} }) {
   }
 
   const img = await loadDataUrl(image.previewUrl);
-  const box = letterbox(img.width, img.height);
-  const canvas = document.createElement('canvas');
-  canvas.width = canvas.height = INPUT_SIZE;
-  const g = canvas.getContext('2d', { willReadFrequently: true });
-  g.fillStyle = 'rgb(114,114,114)'; // YOLO's usual padding colour
-  g.fillRect(0, 0, INPUT_SIZE, INPUT_SIZE);
-  g.drawImage(img, box.padX, box.padY, box.w, box.h);
-  const { data } = g.getImageData(0, 0, INPUT_SIZE, INPUT_SIZE);
-
-  const input = new ort.Tensor('float32', toTensorData(data), [1, 3, INPUT_SIZE, INPUT_SIZE]);
-  const outputs = await session.run({ [session.inputNames[0]]: input });
-  const out = outputs[session.outputNames[0]];
-  const { hand, discards } = splitTable(decode(out.data, out.dims, box));
+  const { hand, discards } = splitTable(await runModel(img, img.width, img.height));
 
   let notes = '';
   if (hand.length === 0 && discards.length > 0) {

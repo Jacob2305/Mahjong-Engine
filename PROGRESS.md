@@ -168,6 +168,19 @@ dev server's LAN address (http) will show the "needs the https link" message.
 To check on a phone: `npm run build`, drop `dist/` on Netlify, open on the phone, point at
 real tiles, Read now, check the review.
 
+**Live boxes (2026-10-30):** while the camera is open the model runs on the video
+(one frame at a time, ~150 ms rest) and draws a box per tile: green = sure (≥0.75), gold =
+check (0.30–0.75), red dashed = weak guess not read (0.15–0.30); thick = hand row. Labels are
+short names + score (e.g. `7竹 83`). Top bar shows counts + ms per frame; "Boxes on/off"
+toggle. Code: `detectFrame()` in `vision.js`, overlay in `LiveCamera.jsx`; `decode()` takes
+an optional `minScore`. Not yet tested on a phone.
+
+**First real photo (user's table, steep angle, 2026-10-30):** ran the model on it offline.
+Hand row: all 14 tiles found, ~13 read right (one upside-down character tile read as 3萬,
+flagged gold). Missed: an angled discard at the far left (not found at all), the flower
+tile 菊3 in the middle (weak 0.14 guess, wrong: 5 dots), a 南 on a wall-side set (0.36).
+→ Discards/flowers at angles are the weak spot; more such photos in the training set would help.
+
 Original notes (Stage 2+ still to do):
 Idea: point the phone at the table and let the app watch, instead of taking photos.
 - **How:** browser camera (`getUserMedia`) → run the same tile model on frames ~1–3×/s

@@ -29,7 +29,7 @@ export function toTileId(cls) {
   return HONOURS[cls] || SUIT[cls[1]] + cls[0];
 }
 
-const MIN_SCORE = 0.3; // drop guesses below this
+export const MIN_SCORE = 0.3; // drop guesses below this
 const NMS_IOU = 0.5;
 export const HIGH_CONFIDENCE = 0.75;
 const MIN_HAND_ROW = 5; // a row needs at least this many tiles to count as the hand
@@ -63,8 +63,9 @@ function iou(a, b) {
 }
 
 // Raw output [1, 4 + classes, anchors] → boxes in original image pixels.
-// `box` = the letterbox() used for the input.
-export function decode(output, dims, box) {
+// `box` = the letterbox() used for the input. `minScore` can be lowered to also
+// see weak guesses (the live camera draws them as "not counted").
+export function decode(output, dims, box, minScore = MIN_SCORE) {
   const [, rows, anchors] = dims;
   const classes = rows - 4;
   const found = [];
@@ -75,7 +76,7 @@ export function decode(output, dims, box) {
       const s = output[(4 + c) * anchors + a];
       if (s > score) { best = c; score = s; }
     }
-    if (score < MIN_SCORE) continue;
+    if (score < minScore) continue;
     const cx = (output[a] - box.padX) / box.scale;
     const cy = (output[anchors + a] - box.padY) / box.scale;
     const w = output[2 * anchors + a] / box.scale;
