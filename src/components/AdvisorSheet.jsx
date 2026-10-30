@@ -28,6 +28,37 @@ function MoveRow({ tiles, title, tone, short }) {
   );
 }
 
+// Shown instead of the move card when the hand is a legal 8+ win.
+function WinCard({ win }) {
+  const selfDrawn = win.winType === 'selfdraw';
+  return (
+    <div className="rounded-2xl bg-jade-deep ring-2 ring-gold shadow-xl p-4 space-y-3">
+      <div className="flex items-center gap-3">
+        <Tile id={win.id} size="lg" />
+        <div>
+          <div className="text-lg font-extrabold text-gold">Declare the win 🀄</div>
+          <p className="text-[12px] text-cream/85 leading-snug">
+            {selfDrawn
+              ? `You drew ${tileName(win.id)} — call self-drawn win (zimo 自摸).`
+              : `Take ${tileName(win.id)} and call the win (hu 和).`}
+          </p>
+        </div>
+      </div>
+      <div className="rounded-xl bg-green-900/25 ring-1 ring-green-400/40 p-3">
+        <div className="text-sm font-bold text-green-300 mb-1">{win.points} points</div>
+        <ul className="space-y-0.5">
+          {win.reasons.map((r, i) => (
+            <li key={i} className="text-[12px] text-cream/80 leading-snug">
+              <span className="text-gold/70 mr-1">▸</span>
+              {r}
+            </li>
+          ))}
+        </ul>
+      </div>
+    </div>
+  );
+}
+
 // Advice panel at the bottom of the page, shown after "Make My Move".
 // Everything about the move is in one card with a short reason per decision;
 // "Show more" opens the full reasoning. Below it, the hands being built.
@@ -35,6 +66,8 @@ export default function AdvisorSheet({ advice }) {
   const [more, setMore] = useState(false);
   if (!advice) return null;
   const { recommendedDiscard, idealHand, alternativeGoals = [], moveLog = [], played = {} } = advice;
+
+  if (played.win) return <WinCard win={played.win} />;
 
   const claim = played.claim;
   const thrown = played.discard;

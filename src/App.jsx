@@ -6,7 +6,7 @@ import GameContext from './components/GameContext.jsx';
 import AdvisorSheet from './components/AdvisorSheet.jsx';
 import MeldBuilder from './components/MeldBuilder.jsx';
 import PhotoImport from './components/PhotoImport.jsx';
-import { advise } from './engine/advisor.js';
+import { advise, findWin } from './engine/advisor.js';
 import { isBonus, TILE_INDEX, tileName } from './engine/tiles.js';
 
 const STORAGE_KEY = 'mcr-advisor-state-v1';
@@ -252,6 +252,21 @@ export default function App() {
 
     const concealedCount = (h) => h.filter((x) => !isBonus(x)).length;
     const inDiscardMode = (h, m) => concealedCount(h) % 3 === 2; // holds 14 -> must discard
+
+    // --- Phase 0: a legal win beats any claim or throw --------------------------
+    // Off the last discard (holding 13) or self-drawn (holding 14). Nothing is
+    // changed; the player declares the win at the table.
+    const win = findWin({
+      handIds: newHand,
+      melds: newMelds,
+      context: { ...context, lastDiscard: inDiscardMode(newHand, newMelds) ? null : newLast },
+    });
+    if (win?.legal) {
+      setZone(null);
+      setAdvice({ moveLog: [], played: { win } });
+      setShowAdvisor(true);
+      return;
+    }
 
     // --- Phase 1: claim an opponent's discard (only when waiting on 13) ------
     if (!inDiscardMode(newHand, newMelds) && newLast) {

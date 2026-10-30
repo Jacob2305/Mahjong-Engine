@@ -59,6 +59,42 @@ function getBestDraws(counts, m, pool) {
   return draws;
 }
 
+// Is this a legal win right now? `counts` includes the winning tile.
+// Returns null if the hand isn't complete, else { winType, tile, points, legal, reasons }.
+function checkWin(counts, melds, scoreCtx, winType, winningTile) {
+  if (!winningTile) return null;
+  if (getShanten(counts, melds.length).shanten !== -1) return null;
+  const score = bestScore(counts, melds, { ...scoreCtx, winType, winningTile });
+  if (!score.complete) return null;
+  return {
+    winType,
+    tile: idToTile(winningTile),
+    id: winningTile,
+    points: score.points,
+    legal: score.points >= MIN_POINTS,
+    reasons: score.reasons,
+  };
+}
+
+// Holding 14: is it a complete self-drawn hand? The drawn tile is the last one
+// added (or context.drawnTile). Holding 13 with an opponent's discard on the
+// table: does that tile complete the hand? Cheap (no planning), so the app can
+// call it before deciding to claim or throw. Check `.legal` for 8+.
+export function findWin({ handIds = [], melds = [], context = {} }) {
+  const { seatWind = 'east', prevalentWind = 'east', lastDiscard = null } = context;
+  const scoreCtx = { seatWind, prevalentWind };
+  const counts = idsToCounts(handIds);
+  if (handIds.length % 3 === 2) {
+    const drawn = context.drawnTile || [...handIds].reverse().find((id) => TILE_INDEX[id] !== undefined);
+    return checkWin(counts, melds, scoreCtx, 'selfdraw', drawn);
+  }
+  const i = TILE_INDEX[lastDiscard];
+  if (i === undefined || counts[i] >= 4) return null;
+  const withTile = counts.slice();
+  withTile[i]++;
+  return checkWin(withTile, melds, scoreCtx, 'discard', lastDiscard);
+}
+
 export function advise(gameState) {
   const {
     handIds = [],
@@ -82,6 +118,9 @@ export function advise(gameState) {
 
   // 14-tile (mod 3 == 2) -> discard mode.
   const discardMode = handIds.length % 3 === 2;
+
+  // Win check: a legal win beats any claim or throw.
+  const winAdvice = findWin(gameState);
 
   let recommendedDiscard = null;
   let playingCounts = counts;
@@ -174,6 +213,7 @@ export function advise(gameState) {
 
   return {
     discardMode,
+    winAdvice,
     handShanten: playShanten,
     recommendedDiscard,
     meldAdvice,

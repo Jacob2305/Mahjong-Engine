@@ -5,7 +5,7 @@
 git fetch && git checkout smarter-engine && git pull   # current work lives on this branch
 npm install
 npm run dev            # http://localhost:5173
-npm test               # all engine tests
+npm test               # all engine tests (scripts/test.mjs, works on Windows too)
 ```
 Then open this folder in Claude Code and say **"read PROGRESS.md and continue"**.
 Keep this file updated (and pushed) after every step.
@@ -165,9 +165,11 @@ Idea: point the phone at the table and let the app watch, instead of taking phot
 
 ### B. Engine
 1. Record the look-ahead sim result (§4).
-2. **Win on a discard isn't advised**: Make My Move only claims sets/discards. If the last
-   discard completes a legal 8+ hand, show "Declare the win 🀄" with points. Same for a
-   self-drawn complete hand.
+2. ~~Win on a discard isn't advised~~ **Done (2026-10-29):** `findWin()` in `advisor.js`
+   (also `advise().winAdvice`). Make My Move checks it first: if the last discard (holding
+   13) or the drawn tile (holding 14, = last tile added, or `context.drawnTile`) makes a
+   legal 8+ hand, it changes nothing and shows a "Declare the win 🀄" card with points and
+   fans (`WinCard` in `AdvisorSheet.jsx`). Tests: `win.test.mjs`. Not yet browser-tested.
 3. Kong claims in `planClaim` (currently pung/chow only).
 4. Speed on phones: move `advise()` into a Web Worker, show "Thinking…".
 5. Defence: danger rating per discard, weighed against plan value.

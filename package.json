@@ -8,7 +8,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "sim": "node scripts/simulate.mjs",
-    "test": "for t in src/engine/*.test.mjs; do node \"$t\" || exit 1; done",
+    "test": "node scripts/test.mjs",
     "sim4": "node scripts/simulate4.mjs"
   },
   "dependencies": {
