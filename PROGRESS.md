@@ -25,10 +25,6 @@ Keep this file updated (and pushed) after every step.
 **Next decision for the user:** merge `smarter-engine` → `main` here, and `fix-fan-table` →
 `main` in the calculator (run both test suites first).
 
-**Latest measurement still to record:** the 4-player sim for the look-ahead version (commit
-`2ca47aa`) was started but its result wasn't captured before switching laptops. Re-run:
-`npm run sim4` (~15–20 min, 100 games) and add the row to the table in §4. Previous best: 49%.
-
 ---
 
 ## 2. User preferences (keep these)
@@ -105,11 +101,18 @@ Sticks/Numbers/Dots/Symbols; tap → selected box, hold → other box), `Advisor
 ## 4. Results — 4-player sim (100 games, seed 2024)
 | | old (`main`) | claims-aware planner (`d0129ab`) | open-hand values + Chicken (`3ff35cf`) | look-ahead (`2ca47aa`) |
 |---|---|---|---|---|
-| advisor wins | 19% | 38% | **49%** | *re-run `npm run sim4`* |
-| advisor's discard let an opponent win | 16% | 11% | 12% | |
-| opponent won otherwise | 47% | 37% | 30% | |
-| draw | 18% | 14% | 9% | |
-| avg / slowest decision | 0.15 s / 2.6 s | 0.5 s / 8.0 s | 0.53 s / 8.7 s | ~0.5 s / ~0.8 s (bench) |
+| advisor wins | 19% | 38% | **49%** | 42% (8 self-drawn, 34 off a discard; avg 11.4 pts) |
+| advisor's discard let an opponent win | 16% | 11% | 12% | 8% |
+| opponent won otherwise | 47% | 37% | 30% | 32% |
+| draw | 18% | 14% | 9% | 18% |
+| avg / slowest decision | 0.15 s / 2.6 s | 0.5 s / 8.0 s | 0.53 s / 8.7 s | 0.68 s / 3.3 s (159 claims) |
+
+**Look-ahead result (2026-10-29): 42%, down from 49%.** Fewer deal-ins (12%→8%) but many
+more draws (9%→18%). This column includes two commits since `3ff35cf`: `f2643df` (route
+counting by tiles + closest-first search with a 250 ms budget) and `2ca47aa` (look-ahead).
+100 games has about ±5% noise, so the drop is likely real but not certain. Next: run sim4
+on `f2643df` alone to see which change caused it (the time budget may cut off good plans),
+and/or run 300 games.
 
 Opponents are simple bots that never claim, so real games are harder; the comparison
 between versions is what matters.
