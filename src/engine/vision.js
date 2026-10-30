@@ -12,7 +12,7 @@
 // is committed, because a misread tile would silently poison the advice.
 // ---------------------------------------------------------------------------
 
-import { INPUT_SIZE, MIN_SCORE, letterbox, toTensorData, decode, splitTable } from './detect.js';
+import { INPUT_SIZE, MIN_SCORE, letterbox, toTensorData, decode, nms, halfCrops, splitTable } from './detect.js';
 
 // Phone photos are 3000-4000px; the model sees 640px, so downscale early.
 const MAX_EDGE = 1568;
@@ -62,7 +62,7 @@ function encodeSource(source, srcW, srcH) {
   };
 }
 
-// A photo file (camera capture or camera roll).
+// A photo file or Blob (camera capture, camera roll, or a live-camera still).
 export async function prepareImage(file) {
   const img = await loadImage(file);
   return encodeSource(img, img.width, img.height);
@@ -108,35 +108,42 @@ function loadDataUrl(url) {
   });
 }
 
-// Run the model on any drawable source (Image, playing <video>) of size w×h.
-// Returns decoded detections with boxes in the source's pixels.
-async function runModel(source, w, h, minScore) {
+// Run the model on any drawable source (Image, playing <video>) of size w×h, or
+// on one part of it (`crop` = { sx, sy, sw, sh }). Returns decoded detections with
+// boxes in the full source's pixels.
+async function runModel(source, w, h, minScore, crop = { sx: 0, sy: 0, sw: w, sh: h }) {
   const session = await loadSession();
-  const box = letterbox(w, h);
+  const box = letterbox(crop.sw, crop.sh);
   const canvas = (runModel.canvas ||= document.createElement('canvas'));
   canvas.width = canvas.height = INPUT_SIZE;
   const g = canvas.getContext('2d', { willReadFrequently: true });
   g.fillStyle = 'rgb(114,114,114)'; // YOLO's usual padding colour
   g.fillRect(0, 0, INPUT_SIZE, INPUT_SIZE);
-  g.drawImage(source, box.padX, box.padY, box.w, box.h);
+  g.drawImage(source, crop.sx, crop.sy, crop.sw, crop.sh, box.padX, box.padY, box.w, box.h);
   const { data } = g.getImageData(0, 0, INPUT_SIZE, INPUT_SIZE);
 
   const input = new ort.Tensor('float32', toTensorData(data), [1, 3, INPUT_SIZE, INPUT_SIZE]);
   const outputs = await session.run({ [session.inputNames[0]]: input });
   const out = outputs[session.outputNames[0]];
-  return decode(out.data, out.dims, box, minScore);
+  return decode(out.data, out.dims, box, minScore).map((d) => ({
+    ...d,
+    x1: d.x1 + crop.sx, x2: d.x2 + crop.sx, y1: d.y1 + crop.sy, y2: d.y2 + crop.sy,
+  }));
 }
 
-// Live camera: detect tiles in the current video frame, including weak guesses
-// (score >= WEAK_SCORE) so the overlay can show near-misses. Each detection:
+// Live camera: detect tiles in the current video frame, looking at it in two
+// overlapping halves (more pixels per tile), and keep weak guesses (score >=
+// WEAK_SCORE) so the overlay can show near-misses. Each detection:
 // { id, score, x1, y1, x2, y2, counted, inHand } in video pixels. `counted` =
-// strong enough to be used by Read now; `inHand` = part of the hand row.
+// strong enough to be read; `inHand` = part of the hand row.
 export const WEAK_SCORE = 0.15;
 export async function detectFrame(video) {
   if (!video || !video.videoWidth) return { dets: [], width: 0, height: 0 };
   const w = video.videoWidth;
   const h = video.videoHeight;
-  const all = await runModel(video, w, h, WEAK_SCORE);
+  const parts = [];
+  for (const crop of halfCrops(w, h)) parts.push(...(await runModel(video, w, h, WEAK_SCORE, crop)));
+  const all = nms(parts);
   const counted = all.filter((d) => d.score >= MIN_SCORE);
   const { hand } = splitTable(counted);
   const handBoxes = new Set(hand.map((t) => t.box.join(',')));

@@ -1,7 +1,7 @@
 import React, { useRef, useState } from 'react';
 import Tile from './Tile.jsx';
 import LiveCamera from './LiveCamera.jsx';
-import { prepareImage, prepareFrame, recognizeTiles, preloadScanner } from '../engine/vision.js';
+import { prepareImage, recognizeTiles, preloadScanner } from '../engine/vision.js';
 import { isBonus } from '../engine/tiles.js';
 
 const SECTIONS = [
@@ -80,15 +80,8 @@ export default function PhotoImport({ onImport, remaining }) {
     setCamera(true);
   };
 
-  // Grab the frame before the camera closes, then scan it like a photo.
-  const onCameraCapture = (video) => {
-    let image;
-    try {
-      image = prepareFrame(video);
-    } catch (err) {
-      setError(err.message);
-      return;
-    }
+  // The camera hands over its photo (or video frame); scan it like a photo.
+  const onCameraCapture = (image) => {
     setCamera(false);
     scan(() => image);
   };

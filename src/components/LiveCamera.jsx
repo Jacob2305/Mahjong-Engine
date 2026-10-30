@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { detectFrame, preloadScanner } from '../engine/vision.js';
+import { detectFrame, preloadScanner, prepareImage, prepareFrame } from '../engine/vision.js';
 import { tileShort } from '../engine/tiles.js';
 
 // Box colours on the live view.
@@ -15,6 +15,12 @@ const HIGH = 0.75;
 // see what it finds (and what it misses) before tapping "Read now". Read now sends
 // the current frame through the same scan + review as a photo. The camera is
 // switched off when this closes.
+//
+// Read now takes a real photo from the camera where the browser allows it
+// (ImageCapture: Android Chrome) — sharper than a video frame — and falls back to
+// the current video frame elsewhere (iPhone Safari). onCapture gets the image.
+const canTakePhoto = typeof window !== 'undefined' && 'ImageCapture' in window;
+
 export default function LiveCamera({ onCapture, onClose }) {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
@@ -24,6 +30,8 @@ export default function LiveCamera({ onCapture, onClose }) {
   const [showBoxes, setShowBoxes] = useState(true);
   const [stats, setStats] = useState(null); // { hand, other, weak, ms }
   const [loadingModel, setLoadingModel] = useState(true);
+  const [resolution, setResolution] = useState(null); // 'W×H' the camera actually sends
+  const [capturing, setCapturing] = useState(false);
 
   // --- camera ---------------------------------------------------------------
   useEffect(() => {
@@ -35,7 +43,8 @@ export default function LiveCamera({ onCapture, onClose }) {
       }
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } },
+          // Ask for as much as the camera gives: more pixels per tile for the model.
+          video: { facingMode: 'environment', width: { ideal: 3840 }, height: { ideal: 2160 } },
           audio: false,
         });
         if (cancelled) {
@@ -43,6 +52,16 @@ export default function LiveCamera({ onCapture, onClose }) {
           return;
         }
         streamRef.current = stream;
+        const track = stream.getVideoTracks()[0];
+        // Keep refocusing as the phone moves, where supported.
+        try {
+          const caps = track.getCapabilities?.() || {};
+          if (caps.focusMode?.includes('continuous')) {
+            await track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] });
+          }
+        } catch {
+          /* not supported: fine */
+        }
         const v = videoRef.current;
         v.srcObject = stream;
         await v.play().catch(() => {});
@@ -68,7 +87,7 @@ export default function LiveCamera({ onCapture, onClose }) {
   // One detection at a time: start the next as soon as the last is drawn (plus a
   // short rest so the phone doesn't run hot).
   useEffect(() => {
-    if (!ready || !showBoxes) {
+    if (!ready || !showBoxes || capturing) {
       clearCanvas(canvasRef.current);
       return undefined;
     }
@@ -100,7 +119,28 @@ export default function LiveCamera({ onCapture, onClose }) {
       stop = true;
       clearTimeout(timer);
     };
-  }, [ready, showBoxes]);
+  }, [ready, showBoxes, capturing]);
+
+  const readNow = async () => {
+    setCapturing(true);
+    let image = null;
+    if (canTakePhoto) {
+      try {
+        const blob = await new window.ImageCapture(streamRef.current.getVideoTracks()[0]).takePhoto();
+        image = await prepareImage(blob);
+      } catch {
+        image = null; // fall back to the video frame
+      }
+    }
+    try {
+      image ||= prepareFrame(videoRef.current);
+    } catch (err) {
+      setError(err.message);
+      setCapturing(false);
+      return;
+    }
+    onCapture(image);
+  };
 
   return (
     <div className="fixed inset-0 z-50 bg-black flex flex-col">
@@ -116,6 +156,7 @@ export default function LiveCamera({ onCapture, onClose }) {
           {stats && showBoxes
             ? `Hand row ${stats.hand} · other ${stats.other} · weak ${stats.weak} · ${stats.ms} ms`
             : 'Hold square-on over the tiles'}
+          {resolution && <span className="block text-cream/45">camera {resolution}</span>}
         </span>
         <button type="button" onClick={onClose} className="rounded-lg bg-white/15 px-3 py-1.5 text-xs font-semibold">
           ✕ Close
@@ -128,7 +169,10 @@ export default function LiveCamera({ onCapture, onClose }) {
           playsInline
           muted
           autoPlay
-          onLoadedData={() => setReady(true)}
+          onLoadedData={(e) => {
+            setReady(true);
+            setResolution(`${e.currentTarget.videoWidth}×${e.currentTarget.videoHeight}`);
+          }}
           className="absolute inset-0 w-full h-full object-contain"
         />
         <canvas ref={canvasRef} className="absolute inset-0 w-full h-full pointer-events-none" />
@@ -157,13 +201,16 @@ export default function LiveCamera({ onCapture, onClose }) {
       <div className="p-4 pb-6">
         <button
           type="button"
-          onClick={() => onCapture(videoRef.current)}
-          disabled={!ready || !!error}
+          onClick={readNow}
+          disabled={!ready || !!error || capturing}
           className="w-full rounded-2xl bg-gold text-jade-dark font-extrabold py-4 text-lg shadow-lg
             disabled:opacity-40 active:scale-[0.98] transition-transform"
         >
-          ◉ Read now
+          {capturing ? 'Taking the photo…' : '◉ Read now'}
         </button>
+        <p className="mt-1.5 text-center text-[10px] text-cream/45">
+          {canTakePhoto ? 'Read now takes a full photo (sharper than the video)' : 'Read now uses the current video frame'}
+        </p>
       </div>
     </div>
   );

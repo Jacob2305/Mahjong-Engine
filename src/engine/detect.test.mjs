@@ -1,5 +1,5 @@
 // Tests for the photo tile detector's pure logic. Run with: node src/engine/detect.test.mjs
-import { MODEL_CLASSES, toTileId, decode, letterbox, splitTable } from './detect.js';
+import { MODEL_CLASSES, toTileId, decode, letterbox, splitTable, nms, halfCrops } from './detect.js';
 import { TILE_IDS, FLOWERS, SEASONS } from './tiles.js';
 
 let pass = 0, fail = 0;
@@ -78,6 +78,19 @@ const ids = (list) => list.map((t) => t.id).join(' ');
 {
   const r = run(row(['1C', '2C', '3C', '4C', '5C'], 40, 300).map((t, i) => [...t, i === 0 ? 0.5 : 0.9]));
   ok('low score flagged for checking', r.hand[0].confidence === 'low' && r.hand[1].confidence === 'high');
+}
+
+// Live camera halves: overlap in the middle, cover the whole frame.
+{
+  const [a, b] = halfCrops(1920, 1080);
+  ok('landscape halves split the width', a.sx === 0 && a.sh === 1080 && b.sx + b.sw === 1920);
+  ok('halves overlap by 2×15% in the middle', a.sx + a.sw - b.sx === Math.round(1920 * 0.3), `${a.sx + a.sw - b.sx}`);
+  const [c, d] = halfCrops(1080, 1920);
+  ok('portrait halves split the height', c.sy === 0 && c.sw === 1080 && d.sy + d.sh === 1920);
+  // Same tile seen by both halves → one box, the more confident one.
+  const t = (score, x) => ({ id: 'man1', score, x1: x, y1: 0, x2: x + 50, y2: 70 });
+  const kept = nms([t(0.6, 900), t(0.9, 903), t(0.8, 1200)]);
+  ok('merge keeps one box per tile', kept.length === 2 && kept[0].score === 0.9, JSON.stringify(kept));
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

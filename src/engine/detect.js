@@ -86,11 +86,31 @@ export function decode(output, dims, box, minScore = MIN_SCORE) {
       x1: cx - w / 2, y1: cy - h / 2, x2: cx + w / 2, y2: cy + h / 2,
     });
   }
-  // One box per tile: keep the most confident, drop heavy overlaps of any class.
-  found.sort((p, q) => q.score - p.score);
+  return nms(found);
+}
+
+// One box per tile: keep the most confident, drop heavy overlaps of any class.
+export function nms(dets) {
+  const sorted = [...dets].sort((p, q) => q.score - p.score);
   const kept = [];
-  for (const d of found) if (kept.every((k) => iou(k, d) < NMS_IOU)) kept.push(d);
+  for (const d of sorted) if (kept.every((k) => iou(k, d) < NMS_IOU)) kept.push(d);
   return kept;
+}
+
+// Split a w×h frame into two overlapping halves along its long side, so each
+// tile gets about twice the pixels in the 640px model input. The overlap is wide
+// enough that a tile cut by the middle line is whole in at least one half.
+// Returns crop rects { sx, sy, sw, sh } in frame pixels.
+export const CROP_OVERLAP = 0.15; // of the long side, each way from the middle
+export function halfCrops(w, h) {
+  const long = Math.max(w, h);
+  const half = Math.round(long / 2);
+  const ov = Math.round(long * CROP_OVERLAP);
+  const a = { start: 0, size: half + ov };
+  const b = { start: half - ov, size: long - (half - ov) };
+  return w >= h
+    ? [{ sx: a.start, sy: 0, sw: a.size, sh: h }, { sx: b.start, sy: 0, sw: b.size, sh: h }]
+    : [{ sx: 0, sy: a.start, sw: w, sh: a.size }, { sx: 0, sy: b.start, sw: w, sh: b.size }];
 }
 
 function median(xs) {

@@ -175,6 +175,21 @@ short names + score (e.g. `7竹 83`). Top bar shows counts + ms per frame; "Boxe
 toggle. Code: `detectFrame()` in `vision.js`, overlay in `LiveCamera.jsx`; `decode()` takes
 an optional `minScore`. Not yet tested on a phone.
 
+**Why video read worse than photos, and fixes (2026-10-30):** user saw photos read far
+better than the live view at the same angle. Cause is mostly picture quality, not the model:
+video frames skip the phone's photo processing (multi-frame merge, sharpening, denoise), blur
+more, are compressed harder, maybe lower resolution, and 16:9 frames shrink tiles more in the
+640 input. Done:
+1. Camera asks for up to 3840×2160 and shows what it really sends ("camera W×H" in the top
+   bar); continuous focus where supported.
+2. Read now takes a real still photo via `ImageCapture.takePhoto()` (Android Chrome); falls
+   back to the video frame elsewhere (iPhone Safari). A note under the button says which.
+3. Live boxes look at the frame in two overlapping halves (`halfCrops()` in `detect.js`,
+   15% overlap each way, merged with `nms()`): ~2× pixels per tile, ~2× time per frame.
+   Offline on the user's screenshot: sure 10→11, far-set 南 0.36→0.72, but one die was
+   read as 3-Circles (0.45). Photo path (Read now / Scan) still uses the whole image.
+Next if still weak: vote across frames; then retrain with frames from real-angle video.
+
 **First real photo (user's table, steep angle, 2026-10-30):** ran the model on it offline.
 Hand row: all 14 tiles found, ~13 read right (one upside-down character tile read as 3萬,
 flagged gold). Missed: an angled discard at the far left (not found at all), the flower
