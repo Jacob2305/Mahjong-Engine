@@ -113,6 +113,23 @@ counting by tiles + closest-first search with a 250 ms budget) and `2ca47aa` (lo
 on `f2643df` alone to see which change caused it (the time budget may cut off good plans),
 and/or run 300 games.
 
+**Finding the cause (2026-10-29, 100 games seed 2024 unless noted):** re-ran on this laptop:
+`3ff35cf` 49% (same as before, so not the machine); `f2643df` alone 42% (the drop is there,
+not the look-ahead); current with no time limit 45% (30 s worst move); current with old
+top-3-plan scoring 40%; current with **3 routes instead of 10** 48%.
+Bigger check, same 300 new deals (seeds 1–3, run 9 at once so times are a bit high):
+
+| | wins | advisor dealt in | slowest move |
+|---|---|---|---|
+| `3ff35cf` (no time limit) | **51.3%** | 7.3% | 37 s |
+| look-ahead, 10 routes | 43.7% | 10.0% | 4.5 s |
+| look-ahead, **3 routes** (now in code) | 47.3% | 9.7% | 4.1 s |
+
+**Applied:** `planValue()` `maxRoutes` 10 → 3. Still ~4 points behind `3ff35cf`, which
+searches without a time limit (but can take 30+ s per move). Next to try: raise the
+`findTargets()` time limit (250 ms → e.g. 600 ms) or make it a work limit, and check wins
+vs slowest move with `npm run sim4 -- --seed 1` (2, 3).
+
 Opponents are simple bots that never claim, so real games are harder; the comparison
 between versions is what matters.
 

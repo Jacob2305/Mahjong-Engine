@@ -318,11 +318,13 @@ export function distinctPlans(goals, max = 4) {
 }
 
 // Chance that at least one route comes in. Routes are counted by the TILES they
-// need, not by name: 30 different Chicken Hand shapes are 30 routes, which is the
-// flexibility that lets the hand pivot. A route that needs mostly the same tiles as
-// one already counted adds only a little (they tend to succeed or fail together).
+// need, not by name, so different Chicken Hand shapes count as different routes.
+// A route that needs mostly the same tiles as one already counted adds only a little
+// (they tend to succeed or fail together). Only the best 3 routes count: with 10,
+// almost every throw scored near 100% and the engine couldn't tell them apart
+// (sim4, 300 games: 43.7% wins with 10, 47.3% with 3).
 // `plans` (one per name) is what the explanation and plan cards show.
-export function planValue(goals, k = 3, maxRoutes = 10) {
+export function planValue(goals, k = 3, maxRoutes = 3) {
   const plans = distinctPlans(goals, k);
   const chosen = [];
   let none = 1;
