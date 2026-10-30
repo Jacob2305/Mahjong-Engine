@@ -16,7 +16,8 @@ Keep this file updated (and pushed) after every step.
 
 | Repo / branch | State |
 |---|---|
-| **Mahjong-Engine `smarter-engine`** | All current work. Pushed. **Not merged into `main` yet.** Tests pass. |
+| **Mahjong-Engine `smarter-engine`** | Engine work + Declare-the-win. Pushed. **Not merged into `main` yet.** Tests pass. |
+| **Mahjong-Engine `live-camera`** | Off `smarter-engine`: live camera Stage 1 (§6A). Pushed. Not merged. |
 | Mahjong-Engine `main` | On-device photo scanner + review-drag + scan at top (older engine). |
 | **Calculator (`../Mahjong-Scoring-Calculator`) `fix-fan-table`** | Real MCR scoring fixes (see §5). Pushed. **Not merged yet** — worth merging, it changes real scores. The engine already uses these fixed files (`src/engine/mcr/`). |
 | Calculator `main` | Live app (on-device scanner, home-screen brackets, suit bar, false-win penalties). |
@@ -135,7 +136,19 @@ between versions is what matters.
 
 ## 6. Next up
 
-### A. Live video / camera mode (ambitious — discussed, NOT started)
+### A. Live video / camera mode — **Stage 1 done (2026-10-29, branch `live-camera`)**
+**User's answers:** phone **held in hand**, **physical tiles** at a table, start with Stage 1.
+
+**Stage 1 (done, not yet phone-tested):** "🎥 Live camera" button under "📷 Scan hand/table"
+(only shown if the browser has a camera API). Opens `LiveCamera.jsx`: full-screen back
+camera, "◉ Read now" grabs the current frame (`prepareFrame()` in `vision.js`) and sends it
+through the same scan → review → add as a photo (`scan()` in `PhotoImport.jsx`). Camera
+turns off on Close/after Read now. Needs **https** (Netlify) or localhost — a phone on the
+dev server's LAN address (http) will show the "needs the https link" message.
+To check on a phone: `npm run build`, drop `dist/` on Netlify, open on the phone, point at
+real tiles, Read now, check the review.
+
+Original notes (Stage 2+ still to do):
 Idea: point the phone at the table and let the app watch, instead of taking photos.
 - **How:** browser camera (`getUserMedia`) → run the same tile model on frames ~1–3×/s
   (try onnxruntime-web's WebGPU provider for speed) → keep a **table state** and accept a
@@ -153,7 +166,7 @@ Idea: point the phone at the table and let the app watch, instead of taking phot
   - Opponents' melds are at the far edges, small/upside down: log what's clear, tap to add
     the rest (they mostly matter as used-up tiles).
   - Phone heat/battery: scan a few times a second, not 30.
-- **Stages:** (1) live viewfinder + "Read now" button reusing the photo pipeline (small);
+- **Stages:** (1) ~~live viewfinder + "Read now" button reusing the photo pipeline~~ done;
   (2) auto-watch my row and the middle with one-tap confirm (the real project, mostly a
   training-data problem); (3) full table tracking (turn order, who threw what, opponents'
   melds when visible, auto claim/win prompts); throughout: collect frames from real games

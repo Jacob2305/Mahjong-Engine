@@ -1,6 +1,7 @@
 import React, { useRef, useState } from 'react';
 import Tile from './Tile.jsx';
-import { prepareImage, recognizeTiles, preloadScanner } from '../engine/vision.js';
+import LiveCamera from './LiveCamera.jsx';
+import { prepareImage, prepareFrame, recognizeTiles, preloadScanner } from '../engine/vision.js';
 import { isBonus } from '../engine/tiles.js';
 
 const SECTIONS = [
@@ -23,7 +24,9 @@ export default function PhotoImport({ onImport, remaining }) {
   const [result, setResult] = useState(null); // { hand: [...], discards: [...], notes }
   const [selected, setSelected] = useState(null); // { section, index }
   const [drag, setDrag] = useState(null); // { section, index, id, x, y, over }
+  const [camera, setCamera] = useState(false);
   const fileRef = useRef(null);
+  const hasCamera = typeof navigator !== 'undefined' && !!navigator.mediaDevices?.getUserMedia;
   const sectionRefs = { hand: useRef(null), discards: useRef(null) };
   const press = useRef(null);
   const justDragged = useRef(false); // swallow the click that follows a drag
@@ -45,13 +48,13 @@ export default function PhotoImport({ onImport, remaining }) {
     }
   };
 
-  const onFile = async (e) => {
-    const file = e.target.files && e.target.files[0];
-    if (!file) return;
+  // Photo or camera frame -> recognised tiles -> review screen.
+  // `getImage` returns the prepared image (prepareImage / prepareFrame).
+  const scan = async (getImage) => {
     reset();
     setBusy(true);
     try {
-      const image = await prepareImage(file);
+      const image = await getImage();
       setPreview(image.previewUrl);
       const res = await recognizeTiles({ image, onStatus: setStatus });
       setResult(res);
@@ -64,6 +67,30 @@ export default function PhotoImport({ onImport, remaining }) {
       setBusy(false);
       setStatus(null);
     }
+  };
+
+  const onFile = (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (file) scan(() => prepareImage(file));
+  };
+
+  const openCamera = () => {
+    preloadScanner();
+    reset();
+    setCamera(true);
+  };
+
+  // Grab the frame before the camera closes, then scan it like a photo.
+  const onCameraCapture = (video) => {
+    let image;
+    try {
+      image = prepareFrame(video);
+    } catch (err) {
+      setError(err.message);
+      return;
+    }
+    setCamera(false);
+    scan(() => image);
   };
 
   // Move one tile to the end of the other section.
@@ -166,6 +193,20 @@ export default function PhotoImport({ onImport, remaining }) {
               tiles in a row are your hand, everything else is counted as discards
             </span>
           </button>
+          {hasCamera && (
+            <button
+              type="button"
+              onClick={openCamera}
+              disabled={busy}
+              className="w-full rounded-xl bg-jade-mid/70 text-cream text-sm font-bold py-2
+                leading-tight disabled:opacity-40 active:scale-[0.98] transition-transform"
+            >
+              🎥 Live camera
+              <span className="block text-[10px] font-normal text-cream/60">
+                point at the tiles and tap Read now
+              </span>
+            </button>
+          )}
 
           {/* --- busy ----------------------------------------------------- */}
           {busy && (
@@ -319,6 +360,8 @@ export default function PhotoImport({ onImport, remaining }) {
             </div>
           )}
         </div>
+
+      {camera && <LiveCamera onCapture={onCameraCapture} onClose={() => setCamera(false)} />}
 
       {/* The tile being dragged follows the finger. */}
       {drag && (

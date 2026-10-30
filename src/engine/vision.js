@@ -39,18 +39,18 @@ function loadImage(file) {
   });
 }
 
-// Downscale to MAX_EDGE and re-encode as JPEG. Returns a bare base64 string (no
-// data: prefix, no newlines) plus a data URL for the preview thumbnail.
-export async function prepareImage(file) {
-  const img = await loadImage(file);
-  const scale = Math.min(1, MAX_EDGE / Math.max(img.width, img.height));
-  const w = Math.max(1, Math.round(img.width * scale));
-  const h = Math.max(1, Math.round(img.height * scale));
+// Draw any image source (Image, video frame) downscaled to MAX_EDGE and re-encode
+// as JPEG. Returns a bare base64 string (no data: prefix) plus a data URL for the
+// preview thumbnail.
+function encodeSource(source, srcW, srcH) {
+  const scale = Math.min(1, MAX_EDGE / Math.max(srcW, srcH));
+  const w = Math.max(1, Math.round(srcW * scale));
+  const h = Math.max(1, Math.round(srcH * scale));
 
   const canvas = document.createElement('canvas');
   canvas.width = w;
   canvas.height = h;
-  canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+  canvas.getContext('2d').drawImage(source, 0, 0, w, h);
 
   const dataUrl = canvas.toDataURL('image/jpeg', JPEG_QUALITY);
   return {
@@ -60,6 +60,18 @@ export async function prepareImage(file) {
     width: w,
     height: h,
   };
+}
+
+// A photo file (camera capture or camera roll).
+export async function prepareImage(file) {
+  const img = await loadImage(file);
+  return encodeSource(img, img.width, img.height);
+}
+
+// The current frame of a playing <video> (live camera). Same shape as prepareImage().
+export function prepareFrame(video) {
+  if (!video || !video.videoWidth) throw new Error('The camera is not ready yet — try again in a moment.');
+  return encodeSource(video, video.videoWidth, video.videoHeight);
 }
 
 // --- recognition ------------------------------------------------------------
