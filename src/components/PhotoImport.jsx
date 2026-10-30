@@ -16,7 +16,7 @@ const SECTIONS = [
 // The review step is not optional by design: recognition is good but not perfect,
 // and a single misread tile changes every discard recommendation. Nothing reaches
 // the engine until you have looked at it.
-export default function PhotoImport({ onImport, remaining }) {
+export default function PhotoImport({ onImport, remaining, game }) {
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState(null);
   const [error, setError] = useState(null);
@@ -361,7 +361,7 @@ export default function PhotoImport({ onImport, remaining }) {
           )}
         </div>
 
-      {camera && <LiveCamera onCapture={onCameraCapture} onClose={() => setCamera(false)} />}
+      {camera && <LiveCamera onCapture={onCameraCapture} onClose={() => setCamera(false)} game={game} />}
 
       {/* The tile being dragged follows the finger. */}
       {drag && (

@@ -9,14 +9,18 @@ import {
 } from '../engine/vision.js';
 import { markTiles } from '../engine/detect.js';
 import { createTracker } from '../engine/tracker.js';
-import { tileShort } from '../engine/tiles.js';
+import { tileShort, tileName } from '../engine/tiles.js';
+import { liveHand, planLine } from '../engine/liveAdvice.js';
+import Tile from './Tile.jsx';
 
 // Box colours on the live view.
 const COLORS = {
   sure: '#22c55e', // green: confident, will be read
   check: '#f5b400', // gold: will be read, but worth checking
   weak: '#ef4444', // red, dashed: a weak guess, NOT read
+  throw: '#e879f9', // magenta: the tile to throw
 };
+const ADVICE_HOLD_MS = 2000; // keep the advice up this long if a tile blinks out
 const HIGH = 0.75;
 const DIGITAL_MAX = 4; // digital zoom limit (the 4K stream has room for it)
 
@@ -34,14 +38,20 @@ const canTakePhoto = typeof window !== 'undefined' && 'ImageCapture' in window;
 // - Read now: with boxes on, adds exactly what the boxes show (green + gold).
 //   With boxes off, takes a photo (or the video frame) and scans it.
 // - Save frame: downloads what the model sees, for testing and training.
+// - Advice: when the hand row is a full hand (14 tiles, minus 3 per claimed set)
+//   and steady for two frames, the engine (in a worker, so the video keeps
+//   moving) marks the tile to throw and says which hand it's going for.
+//   `game` = the app's { melds, discards, context } so the advice matches.
 // The camera is switched off when this closes.
-export default function LiveCamera({ onCapture, onClose }) {
+export default function LiveCamera({ onCapture, onClose, game = {} }) {
+  const melds = game.melds || [];
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const streamRef = useRef(null);
   const trackerRef = useRef(createTracker());
   const latestRef = useRef(null); // { dets, split } from the last frame
   const zoomRef = useRef(1);
+  const throwRef = useRef(null); // tile id to mark on the video
   const pinchRef = useRef({ pointers: new Map(), d0: 0, z0: 1 });
   const [ready, setReady] = useState(false);
   const [error, setError] = useState(null);
@@ -53,6 +63,54 @@ export default function LiveCamera({ onCapture, onClose }) {
   const [zoom, setZoom] = useState(1);
   const [zoomInfo, setZoomInfo] = useState({ hw: false, min: 1, max: DIGITAL_MAX, step: 0.1 });
   const [note, setNote] = useState(null);
+  // Advice
+  const workerRef = useRef(null);
+  const prevKeyRef = useRef(null); // hand seen last frame (must repeat to ask)
+  const askedKeyRef = useRef(null); // hand the worker is working on / did
+  const seenAtRef = useRef(0); // last time the advised hand was in view
+  const adviceRef = useRef(null);
+  const [hand, setHand] = useState(null); // liveHand() of the current frame
+  const [advice, setAdvice] = useState(null); // { key, summary }
+  const [thinking, setThinking] = useState(false);
+
+  useEffect(() => {
+    const w = new Worker(new URL('../engine/advise.worker.js', import.meta.url), { type: 'module' });
+    w.onmessage = (e) => {
+      const { key, ok, summary } = e.data;
+      if (key !== askedKeyRef.current) return; // an older hand
+      setThinking(false);
+      if (ok) {
+        seenAtRef.current = Date.now();
+        adviceRef.current = { key, summary };
+        setAdvice(adviceRef.current);
+      }
+    };
+    workerRef.current = w;
+    return () => w.terminate();
+  }, []);
+
+  // Called every frame with liveHand(): ask once the same full hand shows twice.
+  const askAdvice = (h) => {
+    if (!h.ready) {
+      prevKeyRef.current = null;
+      return;
+    }
+    if (adviceRef.current && h.key === adviceRef.current.key) seenAtRef.current = Date.now();
+    if (h.key === prevKeyRef.current && h.key !== askedKeyRef.current && workerRef.current) {
+      askedKeyRef.current = h.key;
+      setThinking(true);
+      workerRef.current.postMessage({
+        key: h.key,
+        state: {
+          handIds: h.ids,
+          melds,
+          discards: game.discards || {},
+          context: { ...(game.context || {}), lastDiscard: null },
+        },
+      });
+    }
+    prevKeyRef.current = h.key;
+  };
 
   // --- camera ---------------------------------------------------------------
   useEffect(() => {
@@ -170,7 +228,12 @@ export default function LiveCamera({ onCapture, onClose }) {
         const marked = markTiles(trackerRef.current.update(raw));
         latestRef.current = marked;
         setLoadingModel(false);
-        draw(canvasRef.current, videoRef.current, marked.dets, digitalZoom());
+        const h = liveHand(marked.dets, melds);
+        setHand(h);
+        askAdvice(h);
+        const a = adviceRef.current;
+        throwRef.current = a && h.key === a.key && !a.summary.win ? a.summary.discard?.id : null;
+        draw(canvasRef.current, videoRef.current, marked.dets, digitalZoom(), throwRef.current);
         setStats({
           hand: marked.dets.filter((d) => d.inHand).length,
           other: marked.dets.filter((d) => d.counted && !d.inHand).length,
@@ -238,6 +301,10 @@ export default function LiveCamera({ onCapture, onClose }) {
     setTimeout(() => setNote(null), 2000);
   };
 
+  // Keep the card up for a moment if a tile blinks out of the row.
+  const adviceLive =
+    showBoxes && advice && hand && (hand.key === advice.key || Date.now() - seenAtRef.current < ADVICE_HOLD_MS);
+
   const dz = digitalZoom();
   const hasLiveTiles = showBoxes && stats && stats.hand + stats.other > 0;
 
@@ -295,6 +362,9 @@ export default function LiveCamera({ onCapture, onClose }) {
             </span>
           </div>
         )}
+        {showBoxes && ready && !error && (
+          <AdviceCard advice={adviceLive ? advice.summary : null} hand={hand} thinking={thinking} />
+        )}
         {note && (
           <div className="absolute inset-x-0 bottom-3 flex justify-center">
             <span className="rounded-full bg-black/70 px-3 py-1 text-xs text-cream">{note}</span>
@@ -332,6 +402,7 @@ export default function LiveCamera({ onCapture, onClose }) {
           <Legend color={COLORS.sure} label="sure" />
           <Legend color={COLORS.check} label="check" />
           <Legend color={COLORS.weak} label="weak, not read" dashed />
+          <Legend color={COLORS.throw} label="throw" />
           <span className="text-cream/50">thick = hand row</span>
         </div>
       )}
@@ -368,6 +439,48 @@ export default function LiveCamera({ onCapture, onClose }) {
   );
 }
 
+// Top-left of the video: what to throw and the plan, in a couple of lines.
+function AdviceCard({ advice, hand, thinking }) {
+  let body;
+  if (advice?.win) {
+    body = (
+      <div>
+        <div className="text-sm font-extrabold text-gold">🀄 Declare the win · {advice.win.points} pts</div>
+        <div className="text-[10px] text-cream/75 leading-snug">{advice.win.fans.join(' · ')}</div>
+      </div>
+    );
+  } else if (advice?.discard) {
+    body = (
+      <div className="flex items-start gap-2">
+        <div className="shrink-0 rounded-md ring-2 ring-fuchsia-400">
+          <Tile id={advice.discard.id} size="sm" />
+        </div>
+        <div className="min-w-0">
+          <div className="text-[12px] font-extrabold text-fuchsia-300">Throw {tileName(advice.discard.id)}</div>
+          <div className="text-[10px] text-cream/80 leading-snug">{planLine(advice.plan)}</div>
+        </div>
+      </div>
+    );
+  } else if (hand?.problem) {
+    body = <div className="text-[11px] text-amber-300">Check the hand: {hand.problem}</div>;
+  } else if (thinking) {
+    body = <div className="text-[11px] text-cream/80 animate-pulse">Thinking about your hand…</div>;
+  } else if (hand && hand.have > 0) {
+    body = (
+      <div className="text-[11px] text-cream/70">
+        Hand row {hand.have}/{hand.need} — get the whole hand in the row for advice
+      </div>
+    );
+  } else {
+    return null;
+  }
+  return (
+    <div className="absolute left-2 top-2 max-w-[78%] rounded-xl bg-black/70 px-2.5 py-2 pointer-events-none">
+      {body}
+    </div>
+  );
+}
+
 function Legend({ color, label, dashed }) {
   return (
     <span className="flex items-center gap-1">
@@ -383,7 +496,7 @@ function clearCanvas(canvas) {
 
 // Draw detections (video pixels) onto the overlay canvas, matching the video's
 // object-contain placement and its digital zoom (CSS scale about the centre).
-function draw(canvas, video, dets, zoom = 1) {
+function draw(canvas, video, dets, zoom = 1, throwId = null) {
   if (!canvas || !video) return;
   const dpr = window.devicePixelRatio || 1;
   const cw = canvas.clientWidth;
@@ -404,6 +517,10 @@ function draw(canvas, video, dets, zoom = 1) {
 
   g.font = 'bold 11px system-ui, sans-serif';
   g.textBaseline = 'bottom';
+  // The tile to throw: one hand-row box with that id (rightmost, if several).
+  const throwBox = throwId
+    ? dets.filter((d) => d.inHand && d.id === throwId).sort((a, b) => b.x1 - a.x1)[0]
+    : null;
   for (const d of dets) {
     const x = px(d.x1);
     const y = py(d.y1);
@@ -423,5 +540,21 @@ function draw(canvas, video, dets, zoom = 1) {
     g.fillRect(x, ly - 14, tw, 14);
     g.fillStyle = '#000';
     g.fillText(label, x + 3, ly - 1);
+  }
+  if (throwBox) {
+    const x = px(throwBox.x1);
+    const y = py(throwBox.y1);
+    const w = (throwBox.x2 - throwBox.x1) * s;
+    const h = (throwBox.y2 - throwBox.y1) * s;
+    g.setLineDash([]);
+    g.strokeStyle = COLORS.throw;
+    g.lineWidth = 5;
+    g.strokeRect(x - 3, y - 3, w + 6, h + 6);
+    const tag = '✕ THROW';
+    const tw = g.measureText(tag).width + 8;
+    g.fillStyle = COLORS.throw;
+    g.fillRect(x + w / 2 - tw / 2, y + h + 5, tw, 15);
+    g.fillStyle = '#000';
+    g.fillText(tag, x + w / 2 - tw / 2 + 4, y + h + 19);
   }
 }

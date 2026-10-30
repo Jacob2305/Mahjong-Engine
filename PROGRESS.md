@@ -206,6 +206,17 @@ found, but labels mostly gold/red → reading the faces at this angle is the mod
 Next: user sends saved frames → test offline (venv in scratchpad has onnxruntime) → start
 the Roboflow retraining set (pre-label with the current model, fix by hand).
 
+**Live advice on the video (2026-10-30):** when the hand row is a full hand (14 tiles,
+minus 3 per claimed set; flowers and red/weak boxes don't count) and the same for two
+frames, `advise()` runs in a Web Worker (`src/engine/advise.worker.js`, so the video keeps
+moving) and the overlay shows: a magenta "✕ THROW" box on that tile, and a top-left card
+with the tile, "Throw X" and one line "Going for <plan> · N pts · needs …" — or
+"🀄 Declare the win · N pts" for a complete 8+ hand. Uses the app's claimed sets, logged
+discards and winds (passed App → PhotoImport → LiveCamera as `game`). A 5th copy of a tile
+shows "check the hand" instead of advice. Card stays 2 s if a tile blinks out. Logic in
+`src/engine/liveAdvice.js` (tested). Not yet phone-tested. (Also covers PROGRESS B4 for the
+camera only; Make My Move still runs advise() on the main thread.)
+
 **First real photo (user's table, steep angle, 2026-10-30):** ran the model on it offline.
 Hand row: all 14 tiles found, ~13 read right (one upside-down character tile read as 3萬,
 flagged gold). Missed: an angled discard at the far left (not found at all), the flower
