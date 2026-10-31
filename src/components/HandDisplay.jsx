@@ -19,6 +19,7 @@ export default function HandDisplay({
   onRemoveMeld,
   active,
   onActivate,
+  onClear,
 }) {
   const sorted = sortIds(handIds);
   const concealed = handIds.filter((id) => !isBonus(id)).length;
@@ -64,9 +65,29 @@ export default function HandDisplay({
                 />
               ))}
             </div>
-            <p className="text-[10px] text-cream/40 mt-1.5">
-              tap a tile to discard it → it moves to Seen Discards
-            </p>
+            <div className="mt-1.5 flex items-end justify-between gap-2">
+              <p className="text-[10px] text-cream/40">
+                tap a tile to discard it → it moves to Seen Discards
+              </p>
+              <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); onClear(); }}
+            className="rounded-md bg-red-900/50 px-2 py-0.5 text-[10px] font-semibold text-cream/80 active:scale-95"
+          >
+            Clear
+          </button>
+            </div>
+          </div>
+        )}
+        {sorted.length === 0 && melds.length > 0 && (
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onClear(); }}
+              className="rounded-md bg-red-900/50 px-2 py-0.5 text-[10px] font-semibold text-cream/80 active:scale-95"
+            >
+              Clear
+            </button>
           </div>
         )}
         </div>

@@ -177,25 +177,43 @@ export default function App() {
     syncPersist({ context: next });
   };
 
+  // --- clear buttons ----------------------------------------------------------
+  // My Hand's Clear empties the concealed tiles and the claimed sets shown with them.
+  const clearHand = () => {
+    setHandIds([]);
+    setMelds([]);
+    syncPersist({ handIds: [], melds: [] });
+  };
+  const clearDiscards = () => {
+    setDiscards({});
+    setLastDiscardId(null);
+    setMyDiscardId(null);
+    syncPersist({ discards: {}, lastDiscardId: null, myDiscardId: null });
+  };
+
   // --- bulk import (from a photo) -------------------------------------------
   // Adds a batch of recognised tiles in one commit. The accounting is done on
   // local copies rather than through `remaining`, because state updates don't
   // land until after this runs — so a batch containing five 5-circles has to be
   // caught here, not on the next render. Returns what actually landed.
   // groups: { hand: [ids], discards: [ids] } from one photo, applied together.
+  // A photo that found your hand RESETS the hand (concealed tiles and claimed sets:
+  // it's a fresh read of the whole row); discards are added to what's logged.
   const importTiles = (groups) => {
-    let nextHand = [...handIds];
+    const resetHand = (groups.hand || []).length > 0;
+    let nextHand = resetHand ? [] : [...handIds];
+    const nextMelds = resetHand ? [] : melds;
     let nextDiscards = { ...discards };
     let added = 0;
     let skipped = 0;
 
     const copiesOf = (id) => {
       let n = nextHand.filter((x) => x === id).length;
-      for (const m of melds) n += m.tiles.filter((x) => x === id).length;
+      for (const m of nextMelds) n += m.tiles.filter((x) => x === id).length;
       return n + (nextDiscards[id] || 0);
     };
     const slotsUsed = () =>
-      nextHand.filter((x) => !isBonus(x)).length + melds.length * 3;
+      nextHand.filter((x) => !isBonus(x)).length + nextMelds.length * 3;
 
     const queue = [
       ...(groups.hand || []).map((id) => [id, 'hand']),
@@ -228,10 +246,11 @@ export default function App() {
     }
 
     setHandIds(nextHand);
+    setMelds(nextMelds);
     setDiscards(nextDiscards);
     // Deliberately leaves `lastDiscardId` alone: a whole-table scan has no single
     // "just thrown" tile, and guessing one would produce bogus claim advice.
-    syncPersist({ handIds: nextHand, discards: nextDiscards });
+    syncPersist({ handIds: nextHand, melds: nextMelds, discards: nextDiscards });
     return { added, skipped };
   };
 
@@ -412,7 +431,7 @@ export default function App() {
     <div className="min-h-full flex flex-col">
       <main className="flex-1 px-3 pb-36 pt-2 space-y-2 max-w-md w-full mx-auto">
         {/* Scan first: snap the table instead of tapping 14 tiles */}
-        <PhotoImport onImport={importTiles} remaining={remaining} game={{ melds, discards, context }} />
+        <PhotoImport onImport={importTiles} remaining={remaining} handIds={handIds} game={{ melds, discards, context }} />
 
         {/* Hand — tap the box to target it */}
         <HandDisplay
@@ -422,6 +441,7 @@ export default function App() {
           onRemoveMeld={removeMeld}
           active={zone === 'hand'}
           onActivate={() => toggleZone('hand')}
+          onClear={clearHand}
         />
         {zone === 'hand' && picker}
 
@@ -436,6 +456,7 @@ export default function App() {
             onActivate={() => toggleZone('discards')}
             lastId={lastDiscardId}
             myDiscardId={myDiscardId}
+            onClear={clearDiscards}
           />
         </div>
         {zone === 'discards' && picker}

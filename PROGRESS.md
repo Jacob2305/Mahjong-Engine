@@ -2,7 +2,7 @@
 
 **Picking up on another computer:**
 ```bash
-git fetch && git checkout smarter-engine && git pull   # current work lives on this branch
+git fetch && git checkout main && git pull   # everything is merged into main (2026-10-31)
 npm install
 npm run dev            # http://localhost:5173
 npm test               # all engine tests (scripts/test.mjs, works on Windows too)
@@ -12,20 +12,25 @@ Keep this file updated (and pushed) after every step.
 
 ---
 
-## 1. Where things stand (2026-10-29)
+## 1. Where things stand (2026-10-31)
 
 | Repo / branch | State |
 |---|---|
-| **Mahjong-Engine `smarter-engine`** | Engine work + Declare-the-win. Pushed. **Not merged into `main` yet.** Tests pass. |
-| **Mahjong-Engine `live-camera`** | Off `smarter-engine`: live camera Stage 1 (§6A). Pushed. Not merged. |
-| Mahjong-Engine `main` | On-device photo scanner + review-drag + scan at top (older engine). |
+| **Mahjong-Engine `main`** | **Everything**: smarter engine + Declare-the-win + live camera (Stage 1+) + Clear buttons + photo resets the hand. `live-camera` was fast-forwarded into `main` on 2026-10-31. Work on `main` (or a new branch off it) from now on. |
+| Mahjong-Engine `live-camera`, `smarter-engine` | Old branches, fully contained in `main`. Can be deleted. |
 | **Calculator (`../Mahjong-Scoring-Calculator`) `fix-fan-table`** | Real MCR scoring fixes (see §5). Pushed. **Not merged yet** — worth merging, it changes real scores. The engine already uses these fixed files (`src/engine/mcr/`). |
 | Calculator `main` | Live app (on-device scanner, home-screen brackets, suit bar, false-win penalties). |
 
-**Next decision for the user:** merge `smarter-engine` → `main` here, and `fix-fan-table` →
-`main` in the calculator (run both test suites first).
+**Next decision for the user:** merge `fix-fan-table` → `main` in the calculator.
 
----
+**⚠ Important finding (2026-10-31): the engine's strength depends on the computer's speed.**
+`findTargets()` stops after 250 ms of *time*, so a slower or busier machine finds fewer plans
+and plays worse. Same commit (`2ca47aa`), same 100 deals (seed 2024): **54% wins on the Linux
+laptop vs 42% on the other laptop**. So the sim isn't deterministic across machines, and
+the "3 routes vs 10" comparison (§4) is partly measuring speed. Fix next: replace the time
+limit with a **work limit** (a fixed node count tuned so a phone finishes in ~1 s), then
+re-run sim4 on one machine for 10 vs 3 routes. Until then, compare versions on the same
+machine with nothing else running.
 
 ## 2. User preferences (keep these)
 - **Everything free**: no paid APIs/keys. The Claude/Gemini photo readers were replaced by
@@ -101,10 +106,10 @@ Sticks/Numbers/Dots/Symbols; tap → selected box, hold → other box), `Advisor
 ## 4. Results — 4-player sim (100 games, seed 2024)
 | | old (`main`) | claims-aware planner (`d0129ab`) | open-hand values + Chicken (`3ff35cf`) | look-ahead (`2ca47aa`) |
 |---|---|---|---|---|
-| advisor wins | 19% | 38% | **49%** | 42% (8 self-drawn, 34 off a discard; avg 11.4 pts) |
-| advisor's discard let an opponent win | 16% | 11% | 12% | 8% |
-| opponent won otherwise | 47% | 37% | 30% | 32% |
-| draw | 18% | 14% | 9% | 18% |
+| advisor wins | 19% | 38% | **49%** | 42% other laptop · **54%** Linux laptop (14 self-drawn, 40 off a discard; avg 11.8) |
+| advisor's discard let an opponent win | 16% | 11% | 12% | 8% · 8% |
+| opponent won otherwise | 47% | 37% | 30% | 32% · 27% |
+| draw | 18% | 14% | 9% | 18% · 11% |
 | avg / slowest decision | 0.15 s / 2.6 s | 0.5 s / 8.0 s | 0.53 s / 8.7 s | 0.68 s / 3.3 s (159 claims) |
 
 **Look-ahead result (2026-10-29): 42%, down from 49%.** Fewer deal-ins (12%→8%) but many
@@ -137,6 +142,11 @@ between versions is what matters.
 ---
 
 ## 5. Done (history, condensed)
+- **2026-10-31:** Clear buttons (bottom right of My Hand and Seen Discards; My Hand's clears
+  the claimed sets too). A photo that finds your hand row now **resets** the hand (concealed
+  tiles and claimed sets) instead of adding to it; discards are still added. Review button
+  reads "Set hand (N), add M to discards"; the 5th-copy check ignores the hand being replaced.
+  Merged everything into `main`.
 - **On-device scanner** replaced the paid Claude reader (merged to `main`).
 - **Engine rewrite** (`smarter-engine`): full MCR scorer; planner with live-tile awareness
   (fixed: plans asking for dead tiles); claims-aware chances; open-hand valuation; Chicken

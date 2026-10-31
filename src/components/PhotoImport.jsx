@@ -16,7 +16,7 @@ const SECTIONS = [
 // The review step is not optional by design: recognition is good but not perfect,
 // and a single misread tile changes every discard recommendation. Nothing reaches
 // the engine until you have looked at it.
-export default function PhotoImport({ onImport, remaining, game }) {
+export default function PhotoImport({ onImport, remaining, handIds = [], game }) {
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState(null);
   const [error, setError] = useState(null);
@@ -154,7 +154,12 @@ export default function PhotoImport({ onImport, remaining, game }) {
     for (const { key } of SECTIONS) {
       result[key].forEach((t, i) => {
         used[t.id] = (used[t.id] || 0) + 1;
-        if (used[t.id] > remaining(t.id)) overflow[key].add(i);
+        // When the photo found a hand, it replaces your current hand, so those
+        // tiles don't count as already used.
+        const freed = result.hand.length
+          ? handIds.filter((x) => x === t.id).length + (game?.melds || []).reduce((n, m) => n + m.tiles.filter((x) => x === t.id).length, 0)
+          : 0;
+        if (used[t.id] > remaining(t.id) + freed) overflow[key].add(i);
       });
     }
   }
@@ -347,7 +352,7 @@ export default function PhotoImport({ onImport, remaining, game }) {
                   disabled={total === 0}
                   className="flex-1 rounded-xl bg-gold text-jade-dark text-xs font-extrabold py-2 disabled:opacity-40"
                 >
-                  Add {keepHand.length} to hand, {keepDiscards.length} to discards
+                  {keepHand.length ? `Set hand (${keepHand.length})` : 'Keep hand'}, add {keepDiscards.length} to discards
                 </button>
                 <button
                   type="button"

@@ -3,7 +3,7 @@ import Tile from './Tile.jsx';
 import { TILE_INDEX } from '../engine/tiles.js';
 
 // Compact grid of all tiles seen discarded by any player, with a ×N badge.
-export default function DiscardPool({ discards, onRemove, active, onActivate, lastId, myDiscardId }) {
+export default function DiscardPool({ discards, onRemove, active, onActivate, lastId, myDiscardId, onClear }) {
   const entries = Object.entries(discards)
     .filter(([, n]) => n > 0)
     .sort((a, b) => TILE_INDEX[a[0]] - TILE_INDEX[b[0]]);
@@ -53,6 +53,15 @@ export default function DiscardPool({ discards, onRemove, active, onActivate, la
                 onClick={(e) => { e.stopPropagation(); onRemove(id); }}
               />
             ))}
+            <div className="ml-auto self-end">
+              <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); onClear(); }}
+            className="rounded-md bg-red-900/50 px-2 py-0.5 text-[10px] font-semibold text-cream/80 active:scale-95"
+          >
+            Clear
+          </button>
+            </div>
           </div>
         )}
       </div>
