@@ -142,6 +142,18 @@ between versions is what matters.
 ---
 
 ## 5. Done (history, condensed)
+- **2026-10-31:** "📖 Show point system" button (top row of the bottom bar) opens a
+  full-screen reference (`src/components/PointSystem.jsx`, data in `src/data/pointSystem.js`):
+  how scoring works (8-point minimum, flowers, payments with examples, the 5 principles)
+  and all 81 scoring rules grouped by points, with English + Chinese names, descriptions,
+  notes and "doesn't combine with"; sort most→least / least→most; search. Extracted from
+  https://playmahjong.io/chinese-official-rules and checked rule-by-rule by a separate
+  review pass (all 81 names, points, descriptions and exclusion lists match; the page's
+  typo "Pure Shifted Pung" fixed to "Pure Shifted Pungs").
+  **Scorer differences vs that page (not changed yet, decide first):** the page's Two
+  Melded Kongs (4) means any two kongs and can add Concealed Kong for 6 total; our scorer
+  gives 1 melded + 1 concealed kong = Melded Kong 1 + Concealed Kong 2. The page also has
+  Last of its Kind 和绝张 (4), which our scorer doesn't have (needs a UI flag).
 - **2026-10-31:** Clear buttons (bottom right of My Hand and Seen Discards; My Hand's clears
   the claimed sets too). A photo that finds your hand row now **resets** the hand (concealed
   tiles and claimed sets) instead of adding to it; discards are still added. Review button

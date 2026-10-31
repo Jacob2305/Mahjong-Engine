@@ -6,6 +6,7 @@ import GameContext from './components/GameContext.jsx';
 import AdvisorSheet from './components/AdvisorSheet.jsx';
 import MeldBuilder from './components/MeldBuilder.jsx';
 import PhotoImport from './components/PhotoImport.jsx';
+import PointSystem from './components/PointSystem.jsx';
 import { advise, findWin } from './engine/advisor.js';
 import { isBonus, TILE_INDEX, tileName } from './engine/tiles.js';
 
@@ -41,6 +42,7 @@ export default function App() {
   const saved = loadState();
   // Which box new tiles go into; null = none selected and the picker is hidden.
   const [zone, setZone] = useState(null);
+  const [showPoints, setShowPoints] = useState(false); // the point-system screen
   // Tapping the selected box again closes it.
   const toggleZone = (z) => setZone((cur) => (cur === z ? null : z));
   const [handIds, setHandIds] = useState(saved?.handIds || []);
@@ -429,7 +431,7 @@ export default function App() {
 
   return (
     <div className="min-h-full flex flex-col">
-      <main className="flex-1 px-3 pb-36 pt-2 space-y-2 max-w-md w-full mx-auto">
+      <main className="flex-1 px-3 pb-44 pt-2 space-y-2 max-w-md w-full mx-auto">
         {/* Scan first: snap the table instead of tapping 14 tiles */}
         <PhotoImport onImport={importTiles} remaining={remaining} handIds={handIds} game={{ melds, discards, context }} />
 
@@ -477,7 +479,16 @@ export default function App() {
       </main>
 
       {/* Fixed action bar */}
-      <div className="fixed bottom-0 left-0 right-0 z-30 bg-jade-deep/95 backdrop-blur border-t border-white/10 px-3 py-2.5">
+      <div className="fixed bottom-0 left-0 right-0 z-30 bg-jade-deep/95 backdrop-blur border-t border-white/10 px-3 pt-1.5 pb-2.5">
+        <div className="max-w-md mx-auto mb-1.5">
+          <button
+            type="button"
+            onClick={() => setShowPoints(true)}
+            className="w-full rounded-lg bg-jade-dark/80 ring-1 ring-gold/30 py-1 text-[12px] font-semibold text-gold"
+          >
+            📖 Show point system
+          </button>
+        </div>
         <div className="max-w-md mx-auto flex gap-2">
           <button
             type="button"
@@ -507,6 +518,7 @@ export default function App() {
           </button>
         </div>
       </div>
+      {showPoints && <PointSystem onClose={() => setShowPoints(false)} />}
     </div>
   );
 }
