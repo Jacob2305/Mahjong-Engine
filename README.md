@@ -5,6 +5,8 @@ fully client-side web app. Enter your hand, the tiles you've seen discarded, and
 the game context, and it tells you what to discard, what hands to aim for,
 whether to claim a meld, and which tiles are still live.
 
+**Live app:** [mahjong-engine.netlify.app](https://mahjong-engine.netlify.app)
+
 ## Run locally
 
 ```bash
